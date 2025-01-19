@@ -113,7 +113,10 @@ public class TopListsPlugin : BasePlugin
 		if ((DateTime.UtcNow - _topPlacementCacheTriggered).TotalSeconds < 3)
 			return;
 
-		var onlinePlayers = Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV).ToList();
+		var onlinePlayers = Utilities.GetPlayers()
+			.Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV)
+			.ToList();
+
 		if (onlinePlayers.Count == 0)
 			return;
 
@@ -126,34 +129,46 @@ public class TopListsPlugin : BasePlugin
 				string? connectionString = ModuleServices?.GetConnectionString();
 				if (string.IsNullOrEmpty(connectionString))
 				{
-					throw new Exception("Database connection string is null or empty.");
+					throw new InvalidOperationException("Database connection string is null or empty.");
 				}
 
 				using var connection = new MySqlConnection(connectionString);
 				await connection.OpenAsync();
 
-				foreach (var player in onlinePlayers)
+				var steamIds = onlinePlayers.Select(p => p.SteamID.ToString()).ToList();
+
+				const string query = @"
+                WITH PlayerPoints AS (
+                    SELECT
+                        steam_id,
+                        CASE
+                            WHEN JSON_VALID(`K4-Zenith-Ranks.storage`) = 0 THEN 0
+                            WHEN JSON_EXTRACT(`K4-Zenith-Ranks.storage`, '$.Points') IS NULL THEN 0
+                            ELSE CAST(JSON_UNQUOTE(JSON_EXTRACT(`K4-Zenith-Ranks.storage`, '$.Points')) AS DECIMAL(10,2))
+                        END as points
+                    FROM zenith_player_storage
+                    WHERE `K4-Zenith-Ranks.storage` IS NOT NULL
+                )
+                SELECT
+                    steam_id,
+                    (SELECT COUNT(*) + 1
+                    FROM PlayerPoints pp1
+                    WHERE pp1.points > pp2.points) AS Placement
+                FROM PlayerPoints pp2
+                WHERE pp2.steam_id IN @SteamIds";
+
+				var results = await connection.QueryAsync<(string SteamId, long Placement)>(
+					query,
+					new { SteamIds = steamIds }
+				);
+
+				foreach (var (SteamId, Placement) in results)
 				{
-					var steamId = player.SteamID;
-					var query = $@"
-						WITH PlayerPoints AS (
-							SELECT
-								steam_id,
-								CAST(JSON_UNQUOTE(JSON_EXTRACT(`K4-Zenith-Ranks.storage`, '$.Points')) AS DECIMAL(10,2)) as points
-							FROM zenith_player_storage
-							WHERE JSON_EXTRACT(`K4-Zenith-Ranks.storage`, '$.Points') IS NOT NULL
-						)
-						SELECT
-							(SELECT COUNT(*) + 1
-							FROM PlayerPoints pp1
-							WHERE pp1.points > pp2.points) AS Placement
-						FROM PlayerPoints pp2
-						WHERE pp2.steam_id = @SteamId";
-
-					var placement = await connection.QueryFirstOrDefaultAsync<long>(query,
-						new { SteamId = steamId.ToString() });
-
-					_topPlacementCache[steamId] = Tuple.Create(placement, DateTime.UtcNow);
+					if (onlinePlayers.Any(p => p.SteamID.ToString() == SteamId))
+					{
+						var steamId = onlinePlayers.First(p => p.SteamID.ToString() == SteamId).SteamID;
+						_topPlacementCache[steamId] = Tuple.Create(Placement, DateTime.UtcNow);
+					}
 				}
 			}
 			catch (Exception ex)
