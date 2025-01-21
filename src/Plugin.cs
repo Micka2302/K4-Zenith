@@ -160,7 +160,7 @@ namespace Zenith
 			RemoveModulePlaceholders();
 		}
 
-		public void RunAutoMigrations(string backupPath)
+		public void RunAutoMigrations(string backupPath, bool force = false)
 		{
 			var localService = new ServiceCollection()
 				.AddFluentMigratorCore()
@@ -181,7 +181,7 @@ namespace Zenith
 			{
 				migrations = new SortedList<long, FluentMigrator.Infrastructure.IMigrationInfo>(
 					migrations
-					.Where(m => m.Value.Migration.GetType().Name.StartsWith("bans", StringComparison.OrdinalIgnoreCase))
+					.Where(m => !m.Value.Migration.GetType().Name.StartsWith("bans", StringComparison.OrdinalIgnoreCase))
 					.ToDictionary(m => m.Key, m => m.Value));
 			}
 
@@ -189,13 +189,13 @@ namespace Zenith
 			{
 				migrations = new SortedList<long, FluentMigrator.Infrastructure.IMigrationInfo>(
 					migrations
-					.Where(m => m.Value.Migration.GetType().Name.StartsWith("stats", StringComparison.OrdinalIgnoreCase))
+					.Where(m => !m.Value.Migration.GetType().Name.StartsWith("stats", StringComparison.OrdinalIgnoreCase))
 					.ToDictionary(m => m.Key, m => m.Value));
 			}
 
 			// Only run migrations that haven't been applied yet
-			var pendingMigrations = migrations
-				.Where(m => runner.HasMigrationsToApplyUp(m.Key))  // Filter only those that haven't been applied
+			var pendingMigrations = force ? [.. migrations] : migrations
+				.Where(m => runner.HasMigrationsToApplyUp(m.Key))
 				.ToList();
 
 			if (pendingMigrations.Count != 0)

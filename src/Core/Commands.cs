@@ -2,6 +2,7 @@ namespace Zenith
 {
 	using CounterStrikeSharp.API.Core;
 	using CounterStrikeSharp.API.Modules.Commands;
+	using Microsoft.Extensions.Logging;
 	using Zenith.Models;
 
 	public sealed partial class Plugin : BasePlugin
@@ -35,7 +36,7 @@ namespace Zenith
 			RegisterZenithCommand("css_zmigrate", "Migrate other supported plugins' sql data to Zenith", (CCSPlayerController? player, CommandInfo command) =>
 			{
 				Task.Run(async () => await MigrateOldData());
-			}, CommandUsage.SERVER_ONLY, permission: "@zenith/migrate");
+			}, CommandUsage.SERVER_ONLY, permission: "@zenith/root");
 		}
 	}
 }

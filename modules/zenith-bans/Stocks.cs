@@ -263,6 +263,16 @@ namespace Zenith_Bans
 
 			_ = Task.Run(async () =>
 			{
+				if (type == PunishmentType.Warn)
+				{
+					var activePunishments = await GetActivePunishmentsAsync(targetSteamId);
+					if (activePunishments.Count(p => p.Type == PunishmentType.Warn) >= _coreAccessor.GetValue<int>("Config", "WarnMax"))
+					{
+						Server.NextFrame(() => ApplyWarnBan(target));
+						return;
+					}
+				}
+
 				await ApplyPunishmentInternal(callerName, callerSteamId, targetSteamId, targetName, type, duration, reason);
 			});
 		}

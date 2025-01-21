@@ -464,8 +464,11 @@ public sealed partial class Plugin : BasePlugin
 
 				Server.ExecuteCommand("sv_disable_teamselect_menu 1");
 
-				player.ChangeTeam(CsTeam.None);
-				AddTimer(0.2f, () => { Server.ExecuteCommand("sv_disable_teamselect_menu 0"); });
+				AddTimer(0.1f, () =>
+				{
+					player.ChangeTeam(CsTeam.None);
+					AddTimer(0.2f, () => { Server.ExecuteCommand("sv_disable_teamselect_menu 0"); });
+				});
 
 				_moduleServices.PrintForPlayer(player, Localizer.ForPlayer(player, "commands.hide.success"));
 			}

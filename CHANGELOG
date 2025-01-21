@@ -1,3 +1,9 @@
+# 2025.01.21 - 1.0.32
+
+- fix: Prevented database migrations from running on uninstalled modules
+- fix: Restored automatic ban functionality when reaching maximum warnings
+- fix: Prevented team selection menu from appearing when using hide command
+
 # 2025.01.20 - 1.0.31
 
 - feat: Enhanced translation system to use player's language instead of server default (thank you for the idea @daffyy)
