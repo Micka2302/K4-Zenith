@@ -437,20 +437,32 @@ namespace Zenith_Bans
 			using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 			await connection.OpenAsync();
 
+			var checkPlayerQuery = $"SELECT `id` FROM `zenith_bans_players` WHERE `steam_id` = @SteamId";
+			var playerId = await connection.ExecuteScalarAsync<int?>(checkPlayerQuery, new { SteamId = steamId });
+
+			if (!playerId.HasValue)
+			{
+				var insertQuery = $@"
+					INSERT INTO `zenith_bans_players` (`steam_id`)
+					VALUES (@SteamId);
+					SELECT LAST_INSERT_ID();";
+				playerId = await connection.ExecuteScalarAsync<int>(insertQuery, new { SteamId = steamId });
+			}
+
 			var query = $@"
-                SELECT p.id, p.type, p.duration, p.expires_at AS ExpiresAt,
-                    COALESCE(admin.name, 'Console') AS PunisherName, admin.steam_id AS AdminSteamId, p.reason
-                FROM `zenith_bans_punishments` p
-                LEFT JOIN `zenith_bans_players` pl ON p.player_id = pl.id
-                LEFT JOIN `zenith_bans_players` admin ON p.admin_id = admin.id
-                WHERE pl.steam_id = @SteamId
-                AND (p.server_ip = 'all' OR p.server_ip = @ServerIp)
-                AND p.status = 'active'
-                AND (p.type = 'warn' OR (p.expires_at > NOW() OR p.expires_at IS NULL))";
+				SELECT p.id, p.type, p.duration, p.expires_at AS ExpiresAt,
+					COALESCE(admin.name, 'Console') AS PunisherName, admin.steam_id AS AdminSteamId, p.reason
+				FROM `zenith_bans_punishments` p
+				LEFT JOIN `zenith_bans_players` pl ON p.player_id = pl.id
+				LEFT JOIN `zenith_bans_players` admin ON p.admin_id = admin.id
+				WHERE pl.steam_id = @SteamId
+				AND (p.server_ip = 'all' OR p.server_ip = @ServerIp)
+				AND p.status = 'active'
+				AND (p.type = 'warn' OR (p.expires_at > NOW() OR p.expires_at IS NULL))";
 
 			var punishments = await connection.QueryAsync<Punishment>(query, new { SteamId = steamId, ServerIp = _serverIp });
 
-			return punishments.ToList();
+			return [.. punishments];
 		}
 
 		private async Task<string> GetPlayerNameAsync(ulong steamId)

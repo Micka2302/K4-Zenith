@@ -1,3 +1,10 @@
+# 2025.01.24 - 1.0.33
+
+- feat: Added retry mechanism to load player data when the database is back online
+- feat: Added module detection for toplist module
+- fix: Data losses when a database is down
+- fix: Bans webhook sent wrong timestamp for message
+
 # 2025.01.21 - 1.0.32
 
 - fix: Prevented database migrations from running on uninstalled modules

@@ -24,7 +24,7 @@ public class TopListsPlugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.6";
+	public override string ModuleVersion => "1.0.7";
 
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
@@ -40,6 +40,7 @@ public class TopListsPlugin : BasePlugin
 	private DateTime _topPlacementCacheTriggered = DateTime.MinValue;
 
 	public KitsuneMenu? menu { get; private set; }
+	public Dictionary<string, bool> _loadedModules = [];
 
 	public override void OnAllPluginsLoaded(bool hotReload)
 	{
@@ -83,6 +84,13 @@ public class TopListsPlugin : BasePlugin
 			ModuleServices.RegisterModuleCommands(CoreAccessor.GetValue<List<string>>("Commands", "TimeTopCommands"), "Show top players by playtime", OnTimeTopCommand, CommandUsage.CLIENT_ONLY);
 			ModuleServices.RegisterModuleCommands(CoreAccessor.GetValue<List<string>>("Commands", "StatsTopCommands"), "Show top players by statistics", OnStatsTopCommand, CommandUsage.CLIENT_ONLY);
 
+			_loadedModules.Add("Ranks", Directory.Exists(Path.Combine(ModuleDirectory, "..", "K4-Zenith-Ranks")));
+			_loadedModules.Add("Stats", Directory.Exists(Path.Combine(ModuleDirectory, "..", "K4-Zenith-Stats")));
+			_loadedModules.Add("Time", Directory.Exists(Path.Combine(ModuleDirectory, "..", "K4-Zenith-TimeStats")));
+
+			if (_loadedModules.All(x => !x.Value))
+				Logger.LogWarning("No supported modules found. Please make sure to install at least one of the following modules: Ranks, Stats, TimeStats.");
+
 			AddTimer(60.0f, CacheTopPlacements, TimerFlags.REPEAT);
 
 			ModuleServices!.RegisterModulePlayerPlaceholder("rank_top_placement", p =>
@@ -114,6 +122,9 @@ public class TopListsPlugin : BasePlugin
 		if ((DateTime.UtcNow - _topPlacementCacheTriggered).TotalSeconds < 3)
 			return;
 
+		if (!_loadedModules["Ranks"])
+			return;
+
 		var onlinePlayers = Utilities.GetPlayers()
 			.Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV)
 			.ToList();
@@ -143,14 +154,14 @@ public class TopListsPlugin : BasePlugin
 						t1.steam_id,
 						(SELECT COUNT(*) + 1
 						FROM zenith_player_storage t2
-						WHERE CAST(JSON_EXTRACT(t2.`K4-Zenith-Ranks.storage`, '$.Points') AS DECIMAL(10,2)) >
-							CAST(JSON_EXTRACT(t1.`K4-Zenith-Ranks.storage`, '$.Points') AS DECIMAL(10,2))
+						WHERE CAST(JSON_EXTRACT(t2.`K4-Zenith-Ranks.storage`, '$.Points') AS DECIMAL(65,2)) >
+							COALESCE(CAST(JSON_EXTRACT(t1.`K4-Zenith-Ranks.storage`, '$.Points') AS DECIMAL(65,2)), 0)
 						) as rank_position
 					FROM zenith_player_storage t1
 					WHERE
 						FIND_IN_SET(t1.steam_id, @SteamIds) > 0
-						AND JSON_VALID(t1.`K4-Zenith-Ranks.storage`) = 1
-						AND JSON_EXTRACT(t1.`K4-Zenith-Ranks.storage`, '$.Points') IS NOT NULL";
+						AND JSON_EXTRACT(t1.`K4-Zenith-Ranks.storage`, '$.Points') IS NOT NULL
+						AND t1.`K4-Zenith-Ranks.storage` IS NOT NULL";
 
 				string steamIdString = string.Join(",", steamIds);
 
@@ -192,32 +203,19 @@ public class TopListsPlugin : BasePlugin
 	private void ShowCenterMainTopMenu(CCSPlayerController player)
 	{
 		var items = new List<MenuItem>
-	{
-		new MenuItem(MenuItemType.Button, [new MenuValue(Localizer.ForPlayer(player, "top.menu.rank"))]),
-		new MenuItem(MenuItemType.Button, [new MenuValue(Localizer.ForPlayer(player, "top.menu.time"))]),
-		new MenuItem(MenuItemType.Button, [new MenuValue(Localizer.ForPlayer(player, "top.menu.stats"))])
-	};
-
-		menu?.ShowScrollableMenu(player, Localizer.ForPlayer(player, "top.menu.main.title"), items, (buttons, menu, selected) =>
 		{
-			if (selected == null) return;
+			new MenuItem(MenuItemType.Button, [new MenuButtonCallback(Localizer.ForPlayer(player, "top.menu.rank"), "rank", (player, data) => {
+				RankTopHandler?.HandleRankTopCommand(player);
+			}, !_loadedModules["Ranks"])]),
+			new MenuItem(MenuItemType.Button, [new MenuButtonCallback(Localizer.ForPlayer(player, "top.menu.time"), "time", (player, data) => {
+				TimeTopHandler?.HandleTimeTopCommand(player);
+			}, !_loadedModules["Time"])]),
+			new MenuItem(MenuItemType.Button, [new MenuButtonCallback(Localizer.ForPlayer(player, "top.menu.stats"), "stats", (player, data) => {
+				StatsTopHandler?.HandleStatsTopCommand(player);
+			}, !_loadedModules["Stats"])])
+		};
 
-			if (buttons == MenuButtons.Select)
-			{
-				switch (menu.Option)
-				{
-					case 0:
-						RankTopHandler?.HandleRankTopCommand(player);
-						break;
-					case 1:
-						TimeTopHandler?.HandleTimeTopCommand(player);
-						break;
-					case 2:
-						StatsTopHandler?.HandleStatsTopCommand(player);
-						break;
-				}
-			}
-		}, false, CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
+		menu?.ShowScrollableMenu(player, Localizer.ForPlayer(player, "top.menu.main.title"), items, null, false, CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatMainTopMenu(CCSPlayerController player)
@@ -227,36 +225,36 @@ public class TopListsPlugin : BasePlugin
 		chatMenu.AddMenuOption(Localizer.ForPlayer(player, "top.menu.rank"), (p, _) =>
 		{
 			RankTopHandler?.HandleRankTopCommand(p);
-		});
+		}, !_loadedModules["Ranks"]);
 
 		chatMenu.AddMenuOption(Localizer.ForPlayer(player, "top.menu.time"), (p, _) =>
 		{
 			TimeTopHandler?.HandleTimeTopCommand(p);
-		});
+		}, !_loadedModules["Time"]);
 
 		chatMenu.AddMenuOption(Localizer.ForPlayer(player, "top.menu.stats"), (p, _) =>
 		{
 			StatsTopHandler?.HandleStatsTopCommand(p);
-		});
+		}, !_loadedModules["Stats"]);
 
 		MenuManager.OpenChatMenu(player, chatMenu);
 	}
 
 	private void OnRankTopCommand(CCSPlayerController? player, CommandInfo command)
 	{
-		if (player == null || RankTopHandler == null) return;
+		if (player == null || RankTopHandler == null || !_loadedModules["Ranks"]) return;
 		RankTopHandler.HandleRankTopCommand(player, command);
 	}
 
 	private void OnTimeTopCommand(CCSPlayerController? player, CommandInfo command)
 	{
-		if (player == null || TimeTopHandler == null) return;
+		if (player == null || TimeTopHandler == null || !_loadedModules["Time"]) return;
 		TimeTopHandler.HandleTimeTopCommand(player, command);
 	}
 
 	private void OnStatsTopCommand(CCSPlayerController? player, CommandInfo command)
 	{
-		if (player == null || StatsTopHandler == null) return;
+		if (player == null || StatsTopHandler == null || !_loadedModules["Stats"]) return;
 		StatsTopHandler.HandleStatsTopCommand(player, command);
 	}
 

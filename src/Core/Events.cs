@@ -83,14 +83,11 @@ namespace Zenith
 			if (player == null)
 				return HookResult.Continue;
 
-			if (player.Loaded)
-			{
-				string joinFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
-				if (!string.IsNullOrEmpty(joinFormat))
-					_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(ReplacePlaceholders(player.Controller, joinFormat)), false);
+			string joinFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
+			if (!string.IsNullOrEmpty(joinFormat))
+				_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(ReplacePlaceholders(player.Controller, joinFormat)), false);
 
-				player.Dispose();
-			}
+			player.Dispose();
 
 			return HookResult.Continue;
 		}

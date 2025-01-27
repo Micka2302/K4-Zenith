@@ -1107,7 +1107,7 @@ namespace Zenith_Bans
 				jsonPayload = jsonPayload.Replace($"{{{kvp.Key}}}", kvp.Value);
 			}
 
-			jsonPayload = jsonPayload.Replace("{timestamp}", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
+			jsonPayload = jsonPayload.Replace("{timestamp}", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
 
 			var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 

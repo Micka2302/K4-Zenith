@@ -94,6 +94,9 @@ public sealed partial class Player
 	{
 		moduleID ??= CallerIdentifier.GetCallingPluginName();
 
+		if (!Loaded)
+			return;
+
 		if (!targetDict.TryGetValue(moduleID, out var moduleDict))
 		{
 			moduleDict = new Dictionary<string, object?>();
@@ -276,34 +279,50 @@ public sealed partial class Player
 
 	public async Task LoadPlayerData()
 	{
-		await LoadDataAsync(Settings, TABLE_PLAYER_SETTINGS, moduleDefaultSettings);
-		await LoadDataAsync(Storage, TABLE_PLAYER_STORAGE, moduleDefaultStorage);
-
-		Server.NextWorldUpdate(() =>
+		try
 		{
-			_plugin._moduleServices?.InvokeZenithPlayerLoaded(Controller!);
+			await UpdateLastOnline();
 
-			if (_plugin._pluginServerPlaceholders.IsEmpty)
-				return;
+			bool settingsLoaded = await LoadDataAsync(Settings, TABLE_PLAYER_SETTINGS, moduleDefaultSettings);
+			bool storageLoaded = await LoadDataAsync(Storage, TABLE_PLAYER_STORAGE, moduleDefaultStorage);
 
-			string joinFormat = _plugin.GetCoreConfig<string>("Modular", "JoinMessage");
-			if (!string.IsNullOrEmpty(joinFormat))
-				_plugin._moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(_plugin.ReplacePlaceholders(Controller, joinFormat)), false);
-		});
+			if (settingsLoaded && storageLoaded)
+				Loaded = true;
+
+			Server.NextWorldUpdate(() =>
+			{
+				if (!settingsLoaded || !storageLoaded)
+				{
+					_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
+					return;
+				}
+
+				_plugin._moduleServices?.InvokeZenithPlayerLoaded(Controller!);
+
+				if (_plugin._pluginServerPlaceholders.IsEmpty)
+					return;
+
+				string joinFormat = _plugin.GetCoreConfig<string>("Modular", "JoinMessage");
+				if (!string.IsNullOrEmpty(joinFormat))
+					_plugin._moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(_plugin.ReplacePlaceholders(Controller, joinFormat)), false);
+			});
+		}
+		catch (Exception ex)
+		{
+			_plugin.Logger.LogError($"Error loading player data for player {SteamID}: {ex.Message}");
+		}
 	}
 
-	private async Task LoadDataAsync(Dictionary<string, Dictionary<string, object?>> targetDict, string tableName, Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults)
+	private async Task<bool> LoadDataAsync(Dictionary<string, Dictionary<string, object?>> targetDict, string tableName, Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults)
 	{
 		try
 		{
 			using var connection = _plugin.Database.CreateConnection();
 			await connection.OpenAsync();
 			var query = $@"
-            SELECT * FROM `{tableName}`
-            WHERE `steam_id` = @SteamID;";
+				SELECT * FROM `{tableName}`
+				WHERE `steam_id` = @SteamID;";
 			var result = await connection.QueryFirstOrDefaultAsync(query, new { SteamID = SteamID.ToString() });
-
-			await UpdateLastOnline();
 
 			Server.NextWorldUpdate(() =>
 			{
@@ -330,11 +349,12 @@ public sealed partial class Player
 				ApplyDefaultValues(defaults, targetDict);
 			});
 
-			Loaded = true;
+			return true;
 		}
 		catch (Exception ex)
 		{
 			_plugin.Logger.LogError($"Error loading player data for player {SteamID}: {ex.Message}");
+			return false;
 		}
 	}
 
@@ -451,58 +471,6 @@ public sealed partial class Player
 		}
 	}
 
-	private async Task SaveAllPlayerDataAsync(bool isStorage)
-	{
-		try
-		{
-			string tableName = isStorage ? TABLE_PLAYER_STORAGE : TABLE_PLAYER_SETTINGS;
-			using var connection = _plugin.Database.CreateConnection();
-			await connection.OpenAsync();
-
-			var targetDict = isStorage ? Storage : Settings;
-			var dataToSave = new Dictionary<string, string>();
-
-			foreach (var moduleGroup in targetDict.GroupBy(kvp => kvp.Key.Split('.')[0]))
-			{
-				var moduleID = moduleGroup.Key;
-				var moduleData = moduleGroup.ToDictionary(kvp => kvp.Key.Split('.')[1], kvp => kvp.Value);
-				if (moduleData.Count > 0) // Only add if there's data to save
-				{
-					dataToSave[$"{moduleID}.{(isStorage ? "storage" : "settings")}"] = JsonSerializer.Serialize(moduleData);
-				}
-			}
-
-			if (dataToSave.Count == 0)
-			{
-				return; // No data to save
-			}
-
-			var columns = string.Join(", ", dataToSave.Keys.Select(k => $"`{MySqlHelper.EscapeString(k)}`"));
-			var parameters = string.Join(", ", dataToSave.Keys.Select(k => $"@p_{k.Replace("-", "_")}"));
-			var updateStatements = string.Join(", ", dataToSave.Keys.Select(k => $"`{MySqlHelper.EscapeString(k)}` = @p_{k.Replace("-", "_")}"));
-
-			string escapedName = MySqlHelper.EscapeString(Name);
-			var query = $@"
-				INSERT INTO `{tableName}` (`steam_id`, `name`, {columns})
-				VALUES (@p_SteamID, @p_EscapedName, {parameters})
-				ON DUPLICATE KEY UPDATE `name` = @p_EscapedName, {updateStatements};";
-
-			var queryParams = new DynamicParameters();
-			queryParams.Add("@p_SteamID", SteamID.ToString());
-			queryParams.Add("@p_EscapedName", escapedName);
-			foreach (var item in dataToSave)
-			{
-				queryParams.Add($"@p_{item.Key.Replace("-", "_")}", item.Value);
-			}
-
-			await connection.ExecuteAsync(query, queryParams);
-		}
-		catch (Exception ex)
-		{
-			_plugin.Logger.LogError($"Error saving player data for player {SteamID}: {ex.Message}");
-		}
-	}
-
 	public void ResetModuleSettings()
 		=> ResetModuleData(false);
 	public void ResetModuleStorage()
@@ -511,6 +479,9 @@ public sealed partial class Player
 	private void ResetModuleData(bool isStorage)
 	{
 		string callerPlugin = CallerIdentifier.GetCallingPluginName();
+
+		if (!Loaded)
+			return;
 
 		var defaults = isStorage ? moduleDefaultStorage : moduleDefaultSettings;
 		var targetDict = isStorage ? Storage : Settings;
@@ -677,6 +648,7 @@ public sealed partial class Player
 							continue;
 
 						LoadPlayerDataFromResult(player, result, plugin);
+						player.Loaded = true;
 
 						plugin._moduleServices?.InvokeZenithPlayerLoaded(player.Controller!);
 					}
@@ -686,6 +658,12 @@ public sealed partial class Player
 		catch (Exception ex)
 		{
 			plugin.Logger.LogError($"An error occurred while querying the database: {ex.Message}");
+
+			Server.NextWorldUpdate(() =>
+			{
+				plugin.AddTimer(15.0f, () => Task.Run(() => LoadAllOnlinePlayerDataWithSingleQuery(plugin)));
+				return;
+			});
 		}
 	}
 
@@ -694,11 +672,11 @@ public sealed partial class Player
 		foreach (var module in moduleDefaultSettings.Keys)
 		{
 			var settingsKey = $"{module}_settings";
-			if (result.ContainsKey(settingsKey) && result[settingsKey] != null)
+			if (result.TryGetValue(settingsKey, out object? value) && value != null)
 			{
 				try
 				{
-					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(result[settingsKey].ToString()!);
+					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(value.ToString()!);
 					if (moduleData != null)
 					{
 						if (!player.Settings.TryGetValue(module, out var moduleDict))
@@ -723,11 +701,11 @@ public sealed partial class Player
 		foreach (var module in moduleDefaultStorage.Keys)
 		{
 			var storageKey = $"{module}_storage";
-			if (result.ContainsKey(storageKey) && result[storageKey] != null)
+			if (result.TryGetValue(storageKey, out object? value) && value != null)
 			{
 				try
 				{
-					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(result[storageKey].ToString()!);
+					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(value.ToString()!);
 					if (moduleData != null)
 					{
 						if (!player.Storage.TryGetValue(module, out var moduleDict))
@@ -759,6 +737,9 @@ public sealed partial class Player
 
 		foreach (var player in List.Values)
 		{
+			if (!player.Loaded)
+				continue;
+
 			var settingsData = new Dictionary<string, string>();
 			var storageData = new Dictionary<string, string>();
 
@@ -839,63 +820,6 @@ public sealed partial class Player
 		}
 
 		await connection.ExecuteAsync(query, queryParams, transaction);
-	}
-
-	private static void DisposePlayerData()
-	{
-		foreach (var player in List.Values)
-		{
-			player.Settings.Clear();
-			player.Storage.Clear();
-		}
-
-		moduleDefaultSettings.Clear();
-		moduleDefaultStorage.Clear();
-	}
-
-	private static void LoadPlayerData(Dictionary<string, Dictionary<string, object?>> targetDict, dynamic data, Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults, Plugin plugin)
-	{
-		foreach (var property in (IDictionary<string, object>)data)
-		{
-			if ((property.Key.EndsWith(".settings") || property.Key.EndsWith(".storage")) && property.Value != null)
-			{
-				var moduleID = property.Key.Split('.')[0];
-				try
-				{
-					string? jsonString = property.Value?.ToString();
-					if (string.IsNullOrEmpty(jsonString))
-					{
-						plugin.Logger.LogWarning($"Empty or null JSON string for module {moduleID}.");
-						continue;
-					}
-
-					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString);
-					if (moduleData != null)
-					{
-						if (!targetDict.TryGetValue(moduleID, out var moduleDict))
-						{
-							moduleDict = new Dictionary<string, object?>();
-							targetDict[moduleID] = moduleDict;
-						}
-
-						foreach (var item in moduleData)
-						{
-							moduleDict[item.Key] = item.Value;
-						}
-					}
-					else
-					{
-						plugin.Logger.LogWarning($"Deserialized data for module {moduleID} is null.");
-					}
-				}
-				catch (JsonException ex)
-				{
-					plugin.Logger.LogError($"Error deserializing data for module {moduleID}: {ex.Message}");
-				}
-			}
-		}
-
-		ApplyDefaultValues(defaults, targetDict);
 	}
 
 	public static void Dispose(Plugin plugin)

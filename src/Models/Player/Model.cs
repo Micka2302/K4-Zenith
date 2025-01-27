@@ -293,8 +293,11 @@ public sealed partial class Player
 		{
 			try
 			{
-				await SaveDataAsync(Settings, TABLE_PLAYER_SETTINGS);
-				await SaveDataAsync(Storage, TABLE_PLAYER_STORAGE);
+				if (Loaded)
+				{
+					await SaveDataAsync(Settings, TABLE_PLAYER_SETTINGS);
+					await SaveDataAsync(Storage, TABLE_PLAYER_STORAGE);
+				}
 			}
 			catch (Exception ex)
 			{
