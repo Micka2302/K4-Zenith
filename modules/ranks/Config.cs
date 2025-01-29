@@ -8,8 +8,10 @@ public sealed partial class Plugin : BasePlugin
 {
 	public IModuleConfigAccessor _configAccessor = null!;
 
-	private void RegisterConfigs(IModuleServices _moduleServices)
+	private void RegisterConfigs()
 	{
+		if (_moduleServices == null) return;
+
 		// Register Commands
 		_moduleServices.RegisterModuleConfig("Commands", "RankCommands", "Commands to show rank", new List<string> { "rank", "level" });
 

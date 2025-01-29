@@ -21,7 +21,7 @@ public sealed partial class Plugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.14";
+	public override string ModuleVersion => "1.0.15";
 
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
@@ -37,16 +37,14 @@ public sealed partial class Plugin : BasePlugin
 	public IModuleConfigAccessor _coreAccessor = null!;
 
 	private readonly Dictionary<(string Section, string Key), object> _configCache = [];
-	private Task? _backgroundTask;
-	private readonly TimeSpan _playerCacheExpiration = TimeSpan.FromSeconds(3);
-	private readonly CancellationTokenSource _cancellationTokenSource = new();
+	private readonly TimeSpan _playerCacheExpiration = TimeSpan.FromSeconds(5);
 
 	public override void OnAllPluginsLoaded(bool hotReload)
 	{
 		if (!InitializeZenithAPI())
 			return;
 
-		RegisterConfigs(_moduleServices!);
+		RegisterConfigs();
 		RegisterModuleSettings();
 		RegisterModuleStorage();
 		RegisterPlaceholders();
@@ -57,8 +55,6 @@ public sealed partial class Plugin : BasePlugin
 
 		SetupZenithEvents();
 		SetupGameRules(hotReload);
-
-		_backgroundTask = RunBackgroundTasks(_cancellationTokenSource.Token);
 
 		Menu = new KitsuneMenu(this);
 		_coreAccessor = _moduleServices!.GetModuleConfigAccessor();
@@ -82,31 +78,32 @@ public sealed partial class Plugin : BasePlugin
 			message.Send();
 		}, TimerFlags.REPEAT);
 
-		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
-	}
-
-	private async Task RunBackgroundTasks(CancellationToken cancellationToken)
-	{
-		try
+		AddTimer((float)_playerCacheExpiration.TotalSeconds, () =>
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			try
 			{
-				await Task.Delay(_cacheCleanupInterval, cancellationToken);
-				if (!cancellationToken.IsCancellationRequested)
+				CleanupCache();
+
+				int interval = GetCachedConfigValue<int>("Points", "PlaytimeInterval");
+				if (interval <= 0) return;
+
+				if ((DateTime.Now - _lastPlaytimeCheck).TotalMinutes >= interval)
 				{
-					CleanupCache();
-					CheckPlaytime();
+					int playtimePoints = GetCachedConfigValue<int>("Points", "PlaytimePoints");
+					foreach (var player in GetValidPlayers())
+					{
+						ModifyPlayerPoints(player, playtimePoints, "k4.events.playtime");
+					}
+					_lastPlaytimeCheck = DateTime.Now;
 				}
 			}
-		}
-		catch (TaskCanceledException)
-		{
-			// We do cancel the task, so this is expected.
-		}
-		catch (Exception ex)
-		{
-			Logger.LogError($"Error occurred during background tasks: {ex.Message}");
-		}
+			catch (Exception ex)
+			{
+				Logger.LogError($"Error occurred during background tasks: {ex.Message}");
+			}
+		}, TimerFlags.REPEAT);
+
+		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
 	}
 
 	private void CleanupCache()
@@ -119,25 +116,6 @@ public sealed partial class Plugin : BasePlugin
 		{
 			_playerRankCache.Remove(key);
 		}
-	}
-
-	private void CheckPlaytime()
-	{
-		Server.NextWorldUpdate(() =>
-		{
-			int interval = GetCachedConfigValue<int>("Points", "PlaytimeInterval");
-			if (interval <= 0) return;
-
-			if ((DateTime.Now - _lastPlaytimeCheck).TotalMinutes >= interval)
-			{
-				int playtimePoints = GetCachedConfigValue<int>("Points", "PlaytimePoints");
-				foreach (var player in GetValidPlayers())
-				{
-					ModifyPlayerPoints(player, playtimePoints, "k4.events.playtime");
-				}
-				_lastPlaytimeCheck = DateTime.Now;
-			}
-		});
 	}
 
 	private T GetCachedConfigValue<T>(string section, string key) where T : notnull
@@ -274,11 +252,7 @@ public sealed partial class Plugin : BasePlugin
 
 	public override void Unload(bool hotReload)
 	{
-		_cancellationTokenSource.Cancel();
-		_backgroundTask?.Wait();
-		_cancellationTokenSource.Dispose();
-
-		_moduleServicesCapability?.Get()?.DisposeModule(this.GetType().Assembly);
+		_moduleServicesCapability?.Get()?.DisposeModule(GetType().Assembly);
 	}
 
 	public IPlayerServices? GetZenithPlayer(CCSPlayerController? player)
@@ -309,7 +283,7 @@ public sealed partial class Plugin : BasePlugin
 		if (_playerCache.TryGetValue(p, out var player))
 		{
 			var playerData = GetOrUpdatePlayerRankInfo(player);
-			return playerData.Rank?.Name ?? Localizer.ForPlayer(p, "k4.phrases.rank.none");
+			return Localizer.ForPlayer(p, playerData.Rank?.Name ?? "k4.phrases.rank.none") ?? Localizer.ForPlayer(p, "k4.phrases.rank.none");
 		}
 
 		return Localizer.ForPlayer(p, "k4.phrases.rank.none");
@@ -327,7 +301,6 @@ public sealed partial class Plugin : BasePlugin
 	{
 		public Rank? Rank { get; set; }
 		public Rank? NextRank { get; set; }
-		public long Points { get; set; }
 		public DateTime LastUpdate { get; set; }
 		public KillStreakInfo KillStreak { get; set; } = new KillStreakInfo();
 	}

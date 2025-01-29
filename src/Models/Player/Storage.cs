@@ -349,7 +349,7 @@ public sealed partial class Player
 				ApplyDefaultValues(defaults, targetDict);
 			});
 
-			return true;
+			return result != null && result?.Count > 0;
 		}
 		catch (Exception ex)
 		{

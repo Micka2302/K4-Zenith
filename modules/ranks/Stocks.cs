@@ -9,7 +9,6 @@ namespace Zenith_Ranks;
 public sealed partial class Plugin : BasePlugin
 {
 	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
-	private readonly TimeSpan _cacheCleanupInterval = TimeSpan.FromSeconds(3);
 	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
 
 	public IEnumerable<IPlayerServices> GetValidPlayers()
@@ -42,11 +41,13 @@ public sealed partial class Plugin : BasePlugin
 			points = (int)(points * vipMultiplier);
 		}
 
-		long newPoints = Math.Max(0, playerData.Points + points);
-		if (playerData.Points == newPoints)
+		long currentPoints = player.GetStorage<long>("Points");
+		long newPoints = Math.Max(0, currentPoints + points);
+
+		if (currentPoints == newPoints)
 			return;
 
-		playerData.Points = newPoints;
+		player.SetStorage("Points", newPoints);
 		playerData.LastUpdate = DateTime.Now;
 
 		if (scoreboardSync && player.Controller.Score != (int)newPoints)
@@ -72,17 +73,21 @@ public sealed partial class Plugin : BasePlugin
 
 	private void UpdatePlayerRank(IPlayerServices player, PlayerRankInfo playerData, long points)
 	{
-		var (determinedRank, _) = DetermineRanks(points);
+		var (determinedRank, nextRank) = DetermineRanks(points);
 
 		if (determinedRank?.Id != playerData.Rank?.Id)
 		{
 			string newRankName = determinedRank?.Name ?? Localizer.ForPlayer(player.Controller, "k4.phrases.rank.none");
 			player.SetStorage("Rank", newRankName);
 
+			bool isRankUp = playerData.Rank is null || CompareRanks(determinedRank, playerData.Rank) > 0;
+
+			playerData.Rank = determinedRank;
+			playerData.NextRank = nextRank;
+			playerData.LastUpdate = DateTime.Now;
+
 			if (!GetCachedConfigValue<bool>("Settings", "ShowRankChanges"))
 				return;
-
-			bool isRankUp = playerData.Rank is null || CompareRanks(determinedRank, playerData.Rank) > 0;
 
 			string htmlMessage = $@"
             <font color='{(isRankUp ? "#00FF00" : "#FF0000")}' class='fontSize-m'>{Localizer.ForPlayer(player.Controller, isRankUp ? "k4.phrases.rankup" : "k4.phrases.rankdown")}</font><br>
@@ -104,30 +109,23 @@ public sealed partial class Plugin : BasePlugin
 
 	private PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
 	{
-		if (_playerRankCache.TryGetValue(player.SteamID, out var rankInfo) && (DateTime.Now - rankInfo.LastUpdate) < _cacheCleanupInterval)
+		if (_playerRankCache.TryGetValue(player.SteamID, out var rankInfo) && (DateTime.Now - rankInfo.LastUpdate) < _playerCacheExpiration)
+		{
 			return rankInfo;
+		}
 
-		long currentPoints;
-		if (rankInfo != null && (DateTime.Now - rankInfo.LastUpdate) >= _cacheCleanupInterval)
-		{
-			currentPoints = rankInfo.Points;
-			player.SetStorage("Points", currentPoints);
-		}
-		else
-		{
-			currentPoints = player.GetStorage<long>("Points");
-		}
+		var currentPoints = player.GetStorage<long>("Points");
 
 		var (determinedRank, nextRank) = DetermineRanks(currentPoints);
+
 		rankInfo = new PlayerRankInfo
 		{
 			Rank = determinedRank,
 			NextRank = nextRank,
-			Points = currentPoints,
 			LastUpdate = DateTime.Now
 		};
-		_playerRankCache[player.SteamID] = rankInfo;
 
+		_playerRankCache[player.SteamID] = rankInfo;
 		return rankInfo;
 	}
 
@@ -183,7 +181,7 @@ public sealed partial class Plugin : BasePlugin
 		foreach (var player in GetValidPlayers())
 		{
 			var playerData = GetOrUpdatePlayerRankInfo(player);
-			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, playerData.Points, rankMax, rankBase, rankMargin);
+			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, player.GetSetting<long>("Points"), rankMax, rankBase, rankMargin);
 		}
 	}
 

@@ -71,14 +71,15 @@ public sealed partial class Plugin : BasePlugin
 
 		var playerData = GetOrUpdatePlayerRankInfo(playerServices);
 
-		long pointsToNextRank = playerData.NextRank != null ? playerData.NextRank.Point - playerData.Points : 0;
+		long currentPoints = playerServices.GetSetting<long>("Points");
+		long pointsToNextRank = playerData.NextRank != null ? playerData.NextRank.Point - currentPoints : 0;
 
 		if (_coreAccessor.GetValue<bool>("Core", "CenterMenuMode"))
 		{
 			string htmlMessage = $@"
 				<font color='#ff3333' class='fontSize-m'>{Localizer.ForPlayer(player, "k4.ranks.info.title")}</font><br>
 				<font color='#FF6666' class='fontSize-sm'>{Localizer.ForPlayer(player, "k4.ranks.info.current")}</font> <font color='{playerData.Rank?.HexColor ?? "#FFFFFF"}' class='fontSize-s'>{playerData.Rank?.Name ?? Localizer.ForPlayer(player, "k4.phrases.rank.none")}</font><br>
-				<font color='#FF6666' class='fontSize-sm'>{Localizer.ForPlayer(player, "k4.ranks.info.points")}</font> <font color='#FFFFFF' class='fontSize-s'>{playerData.Points:N0}</font>";
+				<font color='#FF6666' class='fontSize-sm'>{Localizer.ForPlayer(player, "k4.ranks.info.points")}</font> <font color='#FFFFFF' class='fontSize-s'>{currentPoints:N0}</font>";
 
 			if (playerData.NextRank != null)
 			{
@@ -92,7 +93,7 @@ public sealed partial class Plugin : BasePlugin
 		else
 		{
 			playerServices.Print(Localizer.ForPlayer(player, "k4.phrases.rank.title", player?.PlayerName ?? "Unknown"));
-			playerServices.Print(Localizer.ForPlayer(player, "k4.phrases.rank.line1", playerData.Rank?.ChatColor ?? ChatColors.Grey.ToString(), playerData.Rank?.Name ?? Localizer.ForPlayer(player, "k4.phrases.rank.none"), $"{playerData.Points:N0}"));
+			playerServices.Print(Localizer.ForPlayer(player, "k4.phrases.rank.line1", playerData.Rank?.ChatColor ?? ChatColors.Grey.ToString(), playerData.Rank?.Name ?? Localizer.ForPlayer(player, "k4.phrases.rank.none"), $"{currentPoints:N0}"));
 			if (playerData.NextRank != null)
 				playerServices.Print(Localizer.ForPlayer(player, "k4.phrases.rank.line2", playerData.NextRank.ChatColor ?? ChatColors.Grey.ToString(), playerData.NextRank.Name, $"{pointsToNextRank:N0}"));
 		}
@@ -145,10 +146,7 @@ public sealed partial class Plugin : BasePlugin
 				long newAmount = zenithPlayer.GetStorage<long>("Points") + amount!.Value;
 				zenithPlayer.SetStorage("Points", newAmount);
 
-				var playerData = GetOrUpdatePlayerRankInfo(zenithPlayer);
-				playerData.Points = newAmount;
-				playerData.LastUpdate = DateTime.Now;
-				UpdatePlayerRank(zenithPlayer, playerData, newAmount);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), newAmount);
 
 				return (
 					Localizer.ForPlayer(player, "k4.phrases.points-given", player?.PlayerName ?? "CONSOLE", amount),
@@ -166,10 +164,7 @@ public sealed partial class Plugin : BasePlugin
 				long newAmount = zenithPlayer.GetStorage<long>("Points") - amount!.Value;
 				zenithPlayer.SetStorage("Points", newAmount, true);
 
-				var playerData = GetOrUpdatePlayerRankInfo(zenithPlayer);
-				playerData.Points = newAmount;
-				playerData.LastUpdate = DateTime.Now;
-				UpdatePlayerRank(zenithPlayer, playerData, newAmount);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), newAmount);
 
 				return (
 					Localizer.ForPlayer(player, "k4.phrases.points-taken", player?.PlayerName ?? "CONSOLE", amount),
@@ -185,11 +180,7 @@ public sealed partial class Plugin : BasePlugin
 			(zenithPlayer, amount) =>
 			{
 				zenithPlayer.SetStorage("Points", amount!.Value, true);
-
-				var playerData = GetOrUpdatePlayerRankInfo(zenithPlayer);
-				playerData.Points = amount!.Value;
-				playerData.LastUpdate = DateTime.Now;
-				UpdatePlayerRank(zenithPlayer, playerData, amount!.Value);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), amount!.Value);
 
 				return (
 					Localizer.ForPlayer(player, "k4.phrases.points-set", player?.PlayerName ?? "CONSOLE", amount),
@@ -211,10 +202,9 @@ public sealed partial class Plugin : BasePlugin
 				var zenithPlayer = GetZenithPlayer(onlinePlayer);
 				if (zenithPlayer != null)
 				{
-					var playerData = GetOrUpdatePlayerRankInfo(zenithPlayer);
-					playerData.Points = _configAccessor.GetValue<long>("Settings", "StartPoints");
-					playerData.LastUpdate = DateTime.Now;
-					UpdatePlayerRank(zenithPlayer, playerData, playerData.Points);
+					long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");
+					zenithPlayer.SetStorage("Points", startingPoints, true);
+					UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), startingPoints);
 				}
 
 				Logger.LogWarning("{0} ({1}) reset {2} ({3}) rank points.", player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0, onlinePlayer.PlayerName, steamId);
@@ -228,13 +218,9 @@ public sealed partial class Plugin : BasePlugin
 		ProcessTargetAction(player, info,
 			(zenithPlayer, _) =>
 			{
-				long startPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");
-				zenithPlayer.SetStorage("Points", startPoints, true);
-
-				var playerData = GetOrUpdatePlayerRankInfo(zenithPlayer);
-				playerData.Points = startPoints;
-				playerData.LastUpdate = DateTime.Now;
-				UpdatePlayerRank(zenithPlayer, playerData, startPoints);
+				long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");
+				zenithPlayer.SetStorage("Points", startingPoints, true);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), startingPoints);
 
 				return (
 					Localizer.ForPlayer(player, "k4.phrases.points-reset", player?.PlayerName ?? "CONSOLE"),

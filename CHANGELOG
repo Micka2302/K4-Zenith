@@ -1,4 +1,10 @@
-# 2025.01.24 - 1.0.33
+# 2025.01.29 - 1.0.34
+
+- fix: Points missmatches due to caches
+- fix: Rank module crash on hotReload
+- remove: Caching in Rank module for points
+
+# 2025.01.27 - 1.0.33
 
 - feat: Added retry mechanism to load player data when the database is back online
 - feat: Added module detection for toplist module
