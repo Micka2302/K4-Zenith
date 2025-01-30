@@ -15,24 +15,30 @@ public sealed partial class Player
 	public static readonly string TABLE_PLAYER_SETTINGS = "zenith_player_settings";
 	public static readonly string TABLE_PLAYER_STORAGE = "zenith_player_storage";
 
-	public Dictionary<string, Dictionary<string, object?>> Settings = new();
-	public Dictionary<string, Dictionary<string, object?>> Storage = new();
-	public static readonly Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> moduleDefaultSettings = new();
-	public static readonly Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> moduleDefaultStorage = new();
-	private static readonly bool[] function = [false, true];
+	public Dictionary<string, Dictionary<string, object?>> Settings = [];
+	public Dictionary<string, Dictionary<string, object?>> Storage = [];
+	public static readonly Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> moduleDefaultSettings = [];
+	public static readonly Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> moduleDefaultStorage = [];
 
 	public static void RegisterModuleSettings(Plugin plugin, Dictionary<string, object?> defaultSettings, IStringLocalizer? localizer = null)
 	{
 		string callerPlugin = CallerIdentifier.GetCallingPluginName();
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
-			await RegisterModuleDataAsync(plugin, callerPlugin, TABLE_PLAYER_SETTINGS);
-
-			Server.NextWorldUpdate(() =>
+			try
 			{
-				moduleDefaultSettings[callerPlugin] = (new Dictionary<string, object?>(defaultSettings), localizer);
-			});
+				await RegisterModuleDataAsync(plugin, callerPlugin, TABLE_PLAYER_SETTINGS);
+
+				Server.NextWorldUpdate(() =>
+				{
+					moduleDefaultSettings[callerPlugin] = (new Dictionary<string, object?>(defaultSettings), localizer);
+				});
+			}
+			catch (Exception ex)
+			{
+				plugin.Logger.LogError($"Error registering module settings for {callerPlugin}: {ex.Message}");
+			}
 		});
 	}
 
@@ -40,47 +46,47 @@ public sealed partial class Player
 	{
 		string callerPlugin = CallerIdentifier.GetCallingPluginName();
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
-			await RegisterModuleDataAsync(plugin, callerPlugin, TABLE_PLAYER_STORAGE);
-
-			Server.NextWorldUpdate(() =>
+			try
 			{
-				moduleDefaultStorage[callerPlugin] = (new Dictionary<string, object?>(defaultStorage), null);
-			});
+				await RegisterModuleDataAsync(plugin, callerPlugin, TABLE_PLAYER_STORAGE);
+
+				Server.NextWorldUpdate(() =>
+				{
+					moduleDefaultStorage[callerPlugin] = (new Dictionary<string, object?>(defaultStorage), null);
+				});
+			}
+			catch (Exception ex)
+			{
+				plugin.Logger.LogError($"Error registering module storage for {callerPlugin}: {ex.Message}");
+			}
 		});
 	}
 
 	private static async Task RegisterModuleDataAsync(Plugin plugin, string moduleID, string tableName)
 	{
-		try
+		string columnName = tableName == TABLE_PLAYER_SETTINGS ? $"{moduleID}.settings" : $"{moduleID}.storage";
+		using var connection = plugin.Database.CreateConnection();
+		await connection.OpenAsync();
+
+		var columnExistsQuery = $@"
+			SELECT COUNT(*)
+			FROM INFORMATION_SCHEMA.COLUMNS
+			WHERE TABLE_SCHEMA = DATABASE()
+			AND TABLE_NAME = @TableName
+			AND COLUMN_NAME = @ColumnName";
+
+		var columnExists = await connection.ExecuteScalarAsync<int>(columnExistsQuery,
+			new { TableName = tableName, ColumnName = columnName }) > 0;
+
+		if (!columnExists)
 		{
-			string columnName = tableName == TABLE_PLAYER_SETTINGS ? $"{moduleID}.settings" : $"{moduleID}.storage";
-			using var connection = plugin.Database.CreateConnection();
-			await connection.OpenAsync();
-
-			var columnExistsQuery = $@"
-				SELECT COUNT(*)
-				FROM INFORMATION_SCHEMA.COLUMNS
-				WHERE TABLE_SCHEMA = DATABASE()
-				AND TABLE_NAME = @TableName
-				AND COLUMN_NAME = @ColumnName";
-
-			var columnExists = await connection.ExecuteScalarAsync<int>(columnExistsQuery,
-				new { TableName = tableName, ColumnName = columnName }) > 0;
-
-			if (!columnExists)
-			{
-				var addColumnQuery = $@"
+			var addColumnQuery = $@"
                 ALTER TABLE `{tableName}`
                 ADD COLUMN `{columnName}` JSON NULL";
 
-				await connection.ExecuteAsync(addColumnQuery);
-			}
-		}
-		catch (Exception ex)
-		{
-			plugin.Logger.LogError($"Failed to register module data for {moduleID}: {ex.Message}");
+			await connection.ExecuteAsync(addColumnQuery);
 		}
 	}
 
@@ -281,22 +287,18 @@ public sealed partial class Player
 	{
 		try
 		{
-			await UpdateLastOnline();
+			using var connection = _plugin.Database.CreateConnection();
+			await connection.OpenAsync();
 
-			bool settingsLoaded = await LoadDataAsync(Settings, TABLE_PLAYER_SETTINGS, moduleDefaultSettings);
-			bool storageLoaded = await LoadDataAsync(Storage, TABLE_PLAYER_STORAGE, moduleDefaultStorage);
+			await UpdateLastOnline(connection);
 
-			if (settingsLoaded && storageLoaded)
-				Loaded = true;
+			await LoadDataAsync(connection, Settings, TABLE_PLAYER_SETTINGS, moduleDefaultSettings);
+			await LoadDataAsync(connection, Storage, TABLE_PLAYER_STORAGE, moduleDefaultStorage);
+
+			Loaded = true;
 
 			Server.NextWorldUpdate(() =>
 			{
-				if (!settingsLoaded || !storageLoaded)
-				{
-					_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
-					return;
-				}
-
 				_plugin._moduleServices?.InvokeZenithPlayerLoaded(Controller!);
 
 				if (_plugin._pluginServerPlaceholders.IsEmpty)
@@ -310,75 +312,59 @@ public sealed partial class Player
 		catch (Exception ex)
 		{
 			_plugin.Logger.LogError($"Error loading player data for player {SteamID}: {ex.Message}");
-		}
-	}
-
-	private async Task<bool> LoadDataAsync(Dictionary<string, Dictionary<string, object?>> targetDict, string tableName, Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults)
-	{
-		try
-		{
-			using var connection = _plugin.Database.CreateConnection();
-			await connection.OpenAsync();
-			var query = $@"
-				SELECT * FROM `{tableName}`
-				WHERE `steam_id` = @SteamID;";
-			var result = await connection.QueryFirstOrDefaultAsync(query, new { SteamID = SteamID.ToString() });
 
 			Server.NextWorldUpdate(() =>
 			{
-				if (result != null)
-				{
-					foreach (var property in result)
-					{
-						if (property.Value != null && (property.Key.EndsWith(".settings") || property.Key.EndsWith(".storage")))
-						{
-							var moduleID = property.Key.Split('.')[0];
-							var data = JsonSerializer.Deserialize<Dictionary<string, object>>(property.Value.ToString());
-							if (!targetDict.ContainsKey(moduleID))
-							{
-								targetDict[moduleID] = new Dictionary<string, object?>();
-							}
-							foreach (var item in data)
-							{
-								targetDict[moduleID][item.Key] = item.Value;
-							}
-						}
-					}
-				}
-
-				ApplyDefaultValues(defaults, targetDict);
+				_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
 			});
-
-			return result != null && result?.Count > 0;
-		}
-		catch (Exception ex)
-		{
-			_plugin.Logger.LogError($"Error loading player data for player {SteamID}: {ex.Message}");
-			return false;
 		}
 	}
 
-	private async Task UpdateLastOnline()
+	private async Task LoadDataAsync(MySqlConnection connection, Dictionary<string, Dictionary<string, object?>> targetDict, string tableName, Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults)
 	{
-		try
-		{
-			using var connection = _plugin.Database.CreateConnection();
-			await connection.OpenAsync();
-			var query = $@"
-				INSERT INTO `{TABLE_PLAYER_SETTINGS}` (`steam_id`, `name`, `last_online`)
-				VALUES (@SteamID, @Name, NOW())
-				ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();
+		var query = $@"
+			SELECT * FROM `{tableName}`
+			WHERE `steam_id` = @SteamID;";
+		var result = await connection.QueryFirstOrDefaultAsync(query, new { SteamID = SteamID.ToString() });
 
-				INSERT INTO `{TABLE_PLAYER_STORAGE}` (`steam_id`, `name`, `last_online`)
-				VALUES (@SteamID, @Name, NOW())
-				ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();";
-
-			await connection.ExecuteAsync(query, new { SteamID = SteamID.ToString(), Name = Name });
-		}
-		catch (Exception ex)
+		Server.NextWorldUpdate(() =>
 		{
-			_plugin.Logger.LogError($"Error updating last online for player {SteamID}: {ex.Message}");
-		}
+			if (result != null)
+			{
+				foreach (var property in result)
+				{
+					if (property.Value != null && (property.Key.EndsWith(".settings") || property.Key.EndsWith(".storage")))
+					{
+						var moduleID = property.Key.Split('.')[0];
+						var data = JsonSerializer.Deserialize<Dictionary<string, object>>(property.Value.ToString());
+						if (!targetDict.ContainsKey(moduleID))
+						{
+							targetDict[moduleID] = new Dictionary<string, object?>();
+						}
+						foreach (var item in data)
+						{
+							targetDict[moduleID][item.Key] = item.Value;
+						}
+					}
+				}
+			}
+
+			ApplyDefaultValues(defaults, targetDict);
+		});
+	}
+
+	private async Task UpdateLastOnline(MySqlConnection connection)
+	{
+		var query = $@"
+			INSERT INTO `{TABLE_PLAYER_SETTINGS}` (`steam_id`, `name`, `last_online`)
+			VALUES (@SteamID, @Name, NOW())
+			ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();
+
+			INSERT INTO `{TABLE_PLAYER_STORAGE}` (`steam_id`, `name`, `last_online`)
+			VALUES (@SteamID, @Name, NOW())
+			ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();";
+
+		await connection.ExecuteAsync(query, new { SteamID = SteamID.ToString(), Name = Name });
 	}
 
 	private static void ApplyDefaultValues(Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults, Dictionary<string, Dictionary<string, object?>> targetDict)
@@ -388,7 +374,7 @@ public sealed partial class Player
 			var moduleID = module.Key;
 			if (!targetDict.TryGetValue(moduleID, out var moduleDict))
 			{
-				moduleDict = new Dictionary<string, object?>();
+				moduleDict = [];
 				targetDict[moduleID] = moduleDict;
 			}
 

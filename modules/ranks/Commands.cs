@@ -71,7 +71,7 @@ public sealed partial class Plugin : BasePlugin
 
 		var playerData = GetOrUpdatePlayerRankInfo(playerServices);
 
-		long currentPoints = playerServices.GetSetting<long>("Points");
+		long currentPoints = playerServices.GetStorage<long>("Points");
 		long pointsToNextRank = playerData.NextRank != null ? playerData.NextRank.Point - currentPoints : 0;
 
 		if (_coreAccessor.GetValue<bool>("Core", "CenterMenuMode"))
