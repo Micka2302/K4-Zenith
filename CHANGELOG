@@ -1,3 +1,10 @@
+# 2025.02.01 - 1.0.37
+
+- feat: Enhanced module reset functionality with unique module identifiers for future compatibility
+- upgrade: Implemented additional validation checks in toplist caching system
+- optimise: Integrated transaction support for reset-all operations
+- fix: Resolved player storage reset command issues
+
 # 2025.01.31 - 1.0.36
 
 - fix: ChatSpy event had a collection modification issue

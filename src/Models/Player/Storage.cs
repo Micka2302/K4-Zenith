@@ -510,15 +510,19 @@ public sealed partial class Player
 				realTarget = "K4-Zenith-TimeStats";
 				break;
 			default:
-				Server.NextWorldUpdate(() => caller?.Print("Invalid argument. Usage: css_zresetall [all|rank|stat|time]"));
+				if (moduleDefaultStorage.ContainsKey(moduleKey))
+					realTarget = moduleKey;
+				else
+					Server.NextWorldUpdate(() => caller?.Print("Invalid argument. Usage: css_zresetall [all|rank|stat|time|module-unique-name]"));
 				return;
 		}
 
+		using var connection = plugin.Database.CreateConnection();
+		await connection.OpenAsync();
+		using var transaction = await connection.BeginTransactionAsync();
+
 		try
 		{
-			using var connection = plugin.Database.CreateConnection();
-			await connection.OpenAsync();
-
 			List<string> modulesToReset = realTarget == "all"
 				? [.. moduleDefaultStorage.Keys]
 				: moduleDefaultStorage.ContainsKey(realTarget) ? [realTarget] : [];
@@ -528,7 +532,7 @@ public sealed partial class Player
 				var defaultValues = moduleDefaultStorage[moduleId].Settings;
 				if (defaultValues.Count == 0)
 				{
-					plugin.Logger.LogWarning($"Attempted to reset non-existent module data: {moduleId}");
+					plugin.Logger.LogWarning("Attempted to reset non-existent module data: {ModuleId}", moduleId);
 					continue;
 				}
 
@@ -537,37 +541,35 @@ public sealed partial class Player
 
 				var query = $@"
 					UPDATE `{TABLE_PLAYER_STORAGE}`
-					SET `@ColumnName` = @DefaultJson;";
+					SET `{columnName}` = @DefaultJson;";
 
-				await connection.ExecuteAsync(query, new { DefaultJson = defaultJson, ColumnName = columnName });
+				await connection.ExecuteAsync(query, new { DefaultJson = defaultJson }, transaction);
 
 				if (moduleId == "K4-Zenith-Stats")
 				{
-					await connection.ExecuteAsync($"TRUNCATE TABLE `zenith_map_stats`;");
-					await connection.ExecuteAsync($"TRUNCATE TABLE `zenith_weapon_stats`;");
+					await connection.ExecuteAsync($"TRUNCATE TABLE `zenith_map_stats`;", transaction);
+					await connection.ExecuteAsync($"TRUNCATE TABLE `zenith_weapon_stats`;", transaction);
 				}
 
 				foreach (var player in List.Values)
 				{
-					if (!player.Storage.TryGetValue(moduleId, out var playerModuleStorage))
+					if (player.Storage.ContainsKey(moduleId))
 					{
-						playerModuleStorage = new Dictionary<string, object?>();
-						player.Storage[moduleId] = playerModuleStorage;
-					}
-
-					playerModuleStorage.Clear();
-					foreach (var kvp in defaultValues)
-					{
-						playerModuleStorage[kvp.Key] = kvp.Value;
+						player.Storage[moduleId] = new Dictionary<string, object?>(defaultValues);
 					}
 				}
 			}
+
+			await transaction.CommitAsync();
 
 			Server.NextWorldUpdate(() =>
 			{
 				plugin._moduleServices?.InvokeZenithStorageReset(realTarget);
 
-				plugin.Logger.LogWarning($"Successfully reset {(realTarget.Equals("all", StringComparison.CurrentCultureIgnoreCase) ? "all modules" : realTarget)} storage for all players. Command used by {caller?.Name ?? "CONSOLE"} ({caller?.SteamID ?? 0})");
+				plugin.Logger.LogWarning("Storage reset completed. Target: {Target}, Caller: {User} ({SteamId})",
+					realTarget.Equals("all", StringComparison.CurrentCultureIgnoreCase) ? "all modules" : realTarget,
+					caller?.Name ?? "CONSOLE",
+					caller?.SteamID ?? 0);
 
 				string resetTarget = realTarget.Equals("all", StringComparison.CurrentCultureIgnoreCase)
 					? plugin.Localizer.ForPlayer(caller?.Controller, "reset.storage.all.modules")
@@ -578,7 +580,8 @@ public sealed partial class Player
 		}
 		catch (Exception ex)
 		{
-			plugin.Logger.LogError($"Error in ResetModuleStorageAll: {ex.Message}");
+			await transaction.RollbackAsync();
+			plugin.Logger.LogError("Error in ResetModuleStorageAll: {Message}", ex.Message);
 			Server.NextWorldUpdate(() => caller?.Print($"An error occurred while resetting {realTarget} storage."));
 		}
 	}

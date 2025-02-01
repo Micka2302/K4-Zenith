@@ -24,7 +24,7 @@ public class TopListsPlugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.7";
+	public override string ModuleVersion => "1.0.8";
 
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
@@ -126,7 +126,7 @@ public class TopListsPlugin : BasePlugin
 			return;
 
 		var onlinePlayers = Utilities.GetPlayers()
-			.Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV)
+			.Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV && p.Connected == PlayerConnectedState.PlayerConnected)
 			.ToList();
 
 		if (onlinePlayers.Count == 0)
@@ -172,7 +172,10 @@ public class TopListsPlugin : BasePlugin
 
 				foreach (var (SteamId, Placement) in results)
 				{
-					if (onlinePlayers.Any(p => p.SteamID.ToString() == SteamId))
+					// validate if still online and valid
+					var foundPlayer = onlinePlayers.FirstOrDefault(p => p.IsValid && !p.IsBot && !p.IsHLTV && p.Connected == PlayerConnectedState.PlayerConnected && p.SteamID.ToString() == SteamId);
+
+					if (foundPlayer != null)
 					{
 						var steamId = onlinePlayers.First(p => p.SteamID.ToString() == SteamId).SteamID;
 						_topPlacementCache[steamId] = Tuple.Create(Placement, DateTime.UtcNow);
