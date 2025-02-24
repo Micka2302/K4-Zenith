@@ -25,7 +25,7 @@ public class Plugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.9";
+	public override string ModuleVersion => "1.0.10";
 
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
@@ -34,6 +34,7 @@ public class Plugin : BasePlugin
 	private IModuleServices? _moduleServices;
 
 	private readonly Dictionary<CCSPlayerController, IPlayerServices> _playerCache = [];
+	private readonly Dictionary<CCSPlayerController, CounterStrikeSharp.API.Modules.Timers.Timer> _removalTimers = [];
 
 	public KitsuneMenu Menu { get; private set; } = null!;
 	public IModuleConfigAccessor _coreAccessor = null!;
@@ -81,8 +82,10 @@ public class Plugin : BasePlugin
 
 		_moduleServices!.RegisterModuleStorage(new Dictionary<string, object?>
 		{
-			{ "ChoosenTag", "Default" },
+			{ "ChoosenTag", "Default" }
 		});
+
+		_moduleServices?.RegisterModuleConfig("Config", "TagRemovalDelay", "Delay in seconds before removing tags when permissions are lost (0 to disable)", 5.0f);
 
 		EnsureConfigFileExists();
 		EnsurePredefinedConfigFileExists();
@@ -447,6 +450,12 @@ public class Plugin : BasePlugin
 
 			string choosenTag = zenithPlayer.GetStorage<string>("ChoosenTag") ?? "Default";
 
+			if (_removalTimers.TryGetValue(player, out var existingTimer))
+			{
+				existingTimer.Kill();
+				_removalTimers.Remove(player);
+			}
+
 			if (choosenTag == "None")
 			{
 				ApplyNullConfig(zenithPlayer);
@@ -467,7 +476,24 @@ public class Plugin : BasePlugin
 
 				if (!existsForUser)
 				{
-					zenithPlayer.SetStorage("ChoosenTag", "Default");
+					float removalDelay = _coreAccessor.GetValue<float>("Config", "TagRemovalDelay");
+					if (removalDelay > 0)
+					{
+						_removalTimers[player] = AddTimer(removalDelay, () =>
+						{
+							if (!CheckTagAvailability(player, choosenTag))
+							{
+								zenithPlayer.SetStorage("ChoosenTag", "Default");
+								ApplyTagConfig(player);
+								_removalTimers.Remove(player);
+							}
+						});
+						return;
+					}
+					else
+					{
+						zenithPlayer.SetStorage("ChoosenTag", "Default");
+					}
 				}
 				else
 					return;
@@ -529,6 +555,20 @@ public class Plugin : BasePlugin
 		{
 			Logger.LogError($"Error applying tag config for player {player.PlayerName}: {ex.Message}");
 		}
+	}
+
+	private bool CheckTagAvailability(CCSPlayerController player, string tagName)
+	{
+		if (_tagConfigs == null) return false;
+
+		foreach (var kvp in _tagConfigs)
+		{
+			if (CheckPermissionOrSteamID(player, kvp.Key) && kvp.Value.AvailableConfigs != null && kvp.Value.AvailableConfigs.Contains(tagName))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static bool HasTagConfigValues(TagConfig config)
@@ -616,11 +656,21 @@ public class Plugin : BasePlugin
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
 	{
+		if (_removalTimers.TryGetValue(player, out var timer))
+		{
+			timer.Kill();
+			_removalTimers.Remove(player);
+		}
 		_playerCache.Remove(player);
 	}
 
 	public override void Unload(bool hotReload)
 	{
+		foreach (var timer in _removalTimers.Values)
+		{
+			timer.Kill();
+		}
+		_removalTimers.Clear();
 		_playerCache.Clear();
 
 		_moduleServicesCapability?.Get()?.DisposeModule(this.GetType().Assembly);

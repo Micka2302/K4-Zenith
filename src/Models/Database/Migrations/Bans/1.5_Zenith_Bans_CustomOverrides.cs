@@ -2,12 +2,11 @@ using FluentMigrator;
 
 namespace Zenith.Migrations
 {
-	[Migration(202411101)] // Új migráció verziója
+	[Migration(202411101)]
 	public class Bans_AddCustomOverrides : Migration
 	{
 		public override void Up()
 		{
-			// zenith_bans_punishments tábla frissítése, ha változott
 			if (!Schema.Table("zenith_bans_player_overrides").Exists())
 			{
 				Create.Table("zenith_bans_player_overrides")

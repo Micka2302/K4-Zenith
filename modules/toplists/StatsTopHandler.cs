@@ -100,7 +100,7 @@ public class StatsTopHandler
 			.Select(category => new MenuItem(MenuItemType.Button, [new MenuValue(_plugin.Localizer.ForPlayer(player, $"statstop.category.{category}"))]))
 			.ToList();
 
-		_plugin.menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "statstop.category.menu.title"), items, (buttons, menu, selected) =>
+		_plugin.Menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "statstop.category.menu.title"), items, (buttons, menu, selected) =>
 		{
 			if (selected == null) return;
 
@@ -168,7 +168,7 @@ public class StatsTopHandler
 	{
 		var items = topPlayers.Select((p, index) => new MenuItem(MenuItemType.Button, [new MenuValue(_plugin.Localizer.ForPlayer(player, "statstop.player.entry.center", index + 1, p.Name, $"{p.Value:N0}"))])).ToList();
 
-		_plugin.menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "top.menu.title", topPlayers.Count), items, (_, _, _) => { }, true, _plugin.CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (_plugin.GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !_plugin.CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
+		_plugin.Menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "top.menu.title", topPlayers.Count), items, (_, _, _) => { }, true, _plugin.CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (_plugin.GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !_plugin.CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatStatsTopMenu(CCSPlayerController player, List<(string Name, int Value)> topPlayers)

@@ -1,4 +1,6 @@
 {
+  "top.clantag": "TOP{0} |",
+
   "top.menu.main.title": "Toplists",
 
   "ranktop.invalid.count": "Invalid player count. Using default ({0}).",

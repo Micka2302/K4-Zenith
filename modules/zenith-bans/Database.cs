@@ -487,7 +487,6 @@ namespace Zenith_Bans
 
 				if (onlineSteamIds.Any())
 				{
-					// If the list is not empty, construct the IN clause dynamically
 					var steamIdList = string.Join(", ", onlineSteamIds.Select((id, index) => $"@steamId{index}"));
 
 					query = $@"
@@ -496,7 +495,6 @@ namespace Zenith_Bans
 						WHERE `current_server` = @ServerIp
 						AND `steam_id` NOT IN ({steamIdList});";
 
-					// Create parameters for each Steam ID
 					int i = 0;
 					foreach (var steamId in onlineSteamIds)
 					{
@@ -506,7 +504,6 @@ namespace Zenith_Bans
 				}
 				else
 				{
-					// If the list is empty, update all players with current_server = @ServerIp
 					query = $@"
 						UPDATE `zenith_bans_players`
 						SET `current_server` = NULL
@@ -742,7 +739,6 @@ namespace Zenith_Bans
 						steamId = convertedSteamID.SteamId64;
 					}
 
-					// Először hozzuk létre/ellenőrizzük a játékost
 					await connection.ExecuteAsync(
 						"INSERT IGNORE INTO zenith_bans_players (steam_id, name) VALUES (@SteamId, @Name)",
 						new { SteamId = steamId, Name = admin.Key }

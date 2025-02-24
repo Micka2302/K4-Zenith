@@ -18,7 +18,7 @@ public sealed partial class Plugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.1.8";
+	public override string ModuleVersion => "1.1.10";
 
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
@@ -71,7 +71,7 @@ public sealed partial class Plugin : BasePlugin
 		AddTimer(hotReload ? 3.0f : 0.01f, () => // ? Sometimes CS2 server use a default port at start, so we need to wait a bit
 		{
 			int port = ConVar.Find("hostport")!.GetPrimitiveValue<int>();
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await InitializeServerIpAsync(port);
 
@@ -127,6 +127,7 @@ public sealed partial class Plugin : BasePlugin
 		{
 			_zenithEvents.OnZenithCoreUnload += OnZenithCoreUnload;
 			_zenithEvents.OnZenithChatMessage += OnZenithChatMessage;
+			_zenithEvents.OnZenithPlayerLoaded += OnZenithPlayerLoaded;
 		}
 		else
 		{
@@ -139,7 +140,7 @@ public sealed partial class Plugin : BasePlugin
 		AddTimer(60.0f, () =>
 		{
 			var onlineSteamIds = GetOnlinePlayersSteamIds();
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await RemoveOfflinePlayersFromServerAsync(onlineSteamIds);
 				await RemoveExpiredPunishmentsAsync(onlineSteamIds);
@@ -159,7 +160,7 @@ public sealed partial class Plugin : BasePlugin
 					ulong steamID = player.SteamID;
 					string ipAddress = player.IpAddress ?? string.Empty;
 
-					_ = Task.Run(async () =>
+					Task.Run(async () =>
 					{
 						try
 						{
@@ -175,6 +176,26 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
+	}
+
+	private void OnZenithPlayerLoaded(CCSPlayerController player)
+	{
+		var zenithPlayer = GetZenithPlayer(player);
+		if (zenithPlayer == null)
+			return;
+
+		var playerData = _playerCache[zenithPlayer.SteamID];
+
+		IPlayerServices? playerServices = GetZenithPlayer(player);
+		if (playerData.Punishments.Any(p => p.Type == PunishmentType.Mute && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
+			playerServices?.SetMute(true, ActionPriority.High);
+
+		if (playerData.Punishments.Any(p => p.Type == PunishmentType.Gag && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
+			playerServices?.SetGag(true, ActionPriority.High);
+
+		_playerCache[zenithPlayer.SteamID] = playerData;
+		_disconnectedPlayers.RemoveAll(p => p.SteamId == zenithPlayer.SteamID);
+
 	}
 
 	private void OnZenithCoreUnload(bool hotReload)

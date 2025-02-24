@@ -67,7 +67,7 @@ public class TimeTopHandler
 			.Select(category => new MenuItem(MenuItemType.Button, [new MenuValue(_plugin.Localizer.ForPlayer(player, $"timetop.category.{category}"))]))
 			.ToList();
 
-		_plugin.menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "timetop.category.menu.title"), items, (buttons, menu, selected) =>
+		_plugin.Menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "timetop.category.menu.title"), items, (buttons, menu, selected) =>
 		{
 			if (selected == null) return;
 
@@ -135,7 +135,7 @@ public class TimeTopHandler
 	{
 		var items = topPlayers.Select((p, index) => new MenuItem(MenuItemType.Button, [new MenuValue(_plugin.Localizer.ForPlayer(player, "timetop.player.entry.center", index + 1, p.Name, FormatTime(player, p.Time)))])).ToList();
 
-		_plugin.menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "top.menu.title", topPlayers.Count), items, (_, _, _) => { }, true, _plugin.CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (_plugin.GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !_plugin.CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
+		_plugin.Menu?.ShowScrollableMenu(player, _plugin.Localizer.ForPlayer(player, "top.menu.title", topPlayers.Count), items, (_, _, _) => { }, true, _plugin.CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (_plugin.GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !_plugin.CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatTimeTopMenu(CCSPlayerController player, List<(string Name, double Time)> topPlayers)

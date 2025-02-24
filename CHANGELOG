@@ -1,3 +1,15 @@
+# 2025.02.24 - 1.0.38
+
+- feat: Enhanced rank point commands to support offline targeting via SteamID
+- feat: Introduced the banip command in the bans module
+- feat: Updated the Toplists module to return only the TOPx clantag based on the defined maximum value
+- feat: Added a configuration option for CustomTag removal delay to improve compatibility
+- optimise: Eliminated redundant task assignment operators from Task.Run calls
+- fix: Corrected improper usage of the shared API within the bans module
+- fix: Prevented an infinite retry loop when a disconnected player's data fails to load
+- fix: Resolved the premature "player not yet loaded" error log in the bans module
+- chore: Relocated the top clantag translation functionality to the TopLists module
+
 # 2025.02.01 - 1.0.37
 
 - feat: Enhanced module reset functionality with unique module identifiers for future compatibility

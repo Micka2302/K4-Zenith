@@ -24,7 +24,7 @@ public class TopListsPlugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.8";
+	public override string ModuleVersion => "1.0.9";
 
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
@@ -39,7 +39,7 @@ public class TopListsPlugin : BasePlugin
 	private readonly ConcurrentDictionary<ulong, Tuple<long, DateTime>> _topPlacementCache = new();
 	private DateTime _topPlacementCacheTriggered = DateTime.MinValue;
 
-	public KitsuneMenu? menu { get; private set; }
+	public KitsuneMenu? Menu { get; private set; }
 	public Dictionary<string, bool> _loadedModules = [];
 
 	public override void OnAllPluginsLoaded(bool hotReload)
@@ -66,7 +66,7 @@ public class TopListsPlugin : BasePlugin
 				Logger.LogError("Failed to get Zenith event handler.");
 			}
 
-			menu = new KitsuneMenu(this);
+			Menu = new KitsuneMenu(this);
 
 			CoreAccessor = ModuleServices.GetModuleConfigAccessor();
 
@@ -74,6 +74,8 @@ public class TopListsPlugin : BasePlugin
 			ModuleServices.RegisterModuleConfig("Commands", "RankTopCommands", "Commands to use the rank toplists", new List<string> { "ranktop", "rtop" });
 			ModuleServices.RegisterModuleConfig("Commands", "TimeTopCommands", "Commands to use the time toplists", new List<string> { "timetop", "ttop" });
 			ModuleServices.RegisterModuleConfig("Commands", "StatsTopCommands", "Commands to use the statistic toplists", new List<string> { "stattop", "statstop", "stop" });
+
+			ModuleServices.RegisterModuleConfig("Settings", "ClanTagMax", "The maximum of the top placement to add clantag addition", 20);
 
 			RankTopHandler = new RankTopHandler(this);
 			TimeTopHandler = new TimeTopHandler(this);
@@ -95,16 +97,16 @@ public class TopListsPlugin : BasePlugin
 
 			ModuleServices!.RegisterModulePlayerPlaceholder("rank_top_placement", p =>
 			{
-				if (p == null) return "N/A";
+				if (p == null) return string.Empty;
 
 				var steamId = p.SteamID;
 
-				if (_topPlacementCache.TryGetValue(steamId, out var cachedData))
+				if (_topPlacementCache.TryGetValue(steamId, out var cachedData) && CoreAccessor!.GetValue<int>("Settings", "ClanTagMax") <= cachedData.Item1)
 				{
-					return cachedData.Item1.ToString();
+					return Localizer["top.clantag", cachedData.Item1];
 				}
 
-				return "N/A";
+				return string.Empty;
 			});
 
 			Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
@@ -172,7 +174,6 @@ public class TopListsPlugin : BasePlugin
 
 				foreach (var (SteamId, Placement) in results)
 				{
-					// validate if still online and valid
 					var foundPlayer = onlinePlayers.FirstOrDefault(p => p.IsValid && !p.IsBot && !p.IsHLTV && p.Connected == PlayerConnectedState.PlayerConnected && p.SteamID.ToString() == SteamId);
 
 					if (foundPlayer != null)
@@ -218,7 +219,7 @@ public class TopListsPlugin : BasePlugin
 			}, !_loadedModules["Stats"])])
 		};
 
-		menu?.ShowScrollableMenu(player, Localizer.ForPlayer(player, "top.menu.main.title"), items, null, false, CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
+		Menu?.ShowScrollableMenu(player, Localizer.ForPlayer(player, "top.menu.main.title"), items, null, false, CoreAccessor!.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(player)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), 5, disableDeveloper: !CoreAccessor!.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatMainTopMenu(CCSPlayerController player)

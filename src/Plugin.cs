@@ -121,7 +121,7 @@ namespace Zenith
 					if ((DateTime.Now - _lastStorageSave).TotalMinutes >= interval)
 					{
 						_lastStorageSave = DateTime.Now;
-						_ = Task.Run(() => Player.SaveAllOnlinePlayerDataWithTransaction(this));
+						Task.Run(() => Player.SaveAllOnlinePlayerDataWithTransaction(this));
 					}
 				}, TimerFlags.REPEAT);
 

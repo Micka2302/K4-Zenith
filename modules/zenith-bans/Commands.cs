@@ -1,3 +1,4 @@
+using System.Net;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
@@ -51,6 +52,7 @@ namespace Zenith_Bans
 			_moduleServices?.RegisterModuleCommand("players", "List online players with all their informations.", OnPlayerList, CommandUsage.CLIENT_AND_SERVER, permission: "@zenith-admin/players");
 			_moduleServices?.RegisterModuleCommand("chatspy", "Toggles chat spy mode for admins.", OnChatSpy, CommandUsage.CLIENT_ONLY, permission: "@zenith-admin/chatspy");
 
+			_moduleServices?.RegisterModuleCommand("banip", "Bans an IP address from the server.", OnBanIpCommand, CommandUsage.CLIENT_AND_SERVER, permission: "@zenith-admin/banip");
 		}
 
 		// +------------------------+
@@ -113,7 +115,7 @@ namespace Zenith_Bans
 			}
 			else
 			{
-				_ = Task.Run(async () =>
+				Task.Run(async () =>
 				{
 					var matchingPlayers = await FindPlayersByNameOrPartialNameAsync(input);
 
@@ -256,7 +258,7 @@ namespace Zenith_Bans
 			ulong targetSteamId = target.SteamID;
 			string targetName = target.PlayerName;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				bool removed = await RemovePunishmentAsync(targetSteamId, PunishmentType.Warn, callerSteamId, reason);
 
@@ -286,7 +288,7 @@ namespace Zenith_Bans
 
 			ulong targetSteamId = steamId.SteamId64;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				bool removed = await RemovePunishmentAsync(targetSteamId, PunishmentType.Warn, callerSteamId, reason);
 				string targetName = await GetPlayerNameAsync(targetSteamId);
@@ -426,7 +428,7 @@ namespace Zenith_Bans
 
 			ProcessTargetAction(controller, info.GetArgTargetResult(1), (target) =>
 			{
-				_ = Task.Run(async () =>
+				Task.Run(async () =>
 				{
 					var groups = await GetAdminGroupsAsync();
 
@@ -494,7 +496,7 @@ namespace Zenith_Bans
 			if (argCount > 2 && info.GetArg(2).Length > 0)
 				group = info.GetArg(2);
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				var groups = await GetAdminGroupsAsync();
 
@@ -659,6 +661,52 @@ namespace Zenith_Bans
 			else
 			{
 				controller.PrintToChat(Localizer.ForPlayer(controller, "k4.chatspy.disabled"));
+			}
+		}
+
+		// +------------------------+
+		// | Ban IP Command         |
+		// +------------------------+
+
+		private void OnBanIpCommand(CCSPlayerController? controller, CommandInfo info)
+		{
+			if (info.ArgCount < 2)
+			{
+				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.invalid-usage", "banip <ip/player> [duration] [reason]"));
+				return;
+			}
+
+			string target = info.GetArg(1);
+			int? duration = null;
+			string reason;
+
+			if (info.ArgCount >= 3 && int.TryParse(info.GetArg(2), out int parsedDuration))
+			{
+				duration = parsedDuration;
+				reason = info.ArgCount > 3 ? info.GetCommandString.Replace(info.GetArg(0), string.Empty).Replace(info.GetArg(1), string.Empty).Replace(info.GetArg(2), string.Empty).Trim() : Localizer.ForPlayer(controller, "k4.general.no-reason");
+			}
+			else
+			{
+				reason = info.ArgCount > 2 ? info.GetCommandString.Replace(info.GetArg(0), string.Empty).Replace(info.GetArg(1), string.Empty).Trim() : Localizer.ForPlayer(controller, "k4.general.no-reason");
+			}
+
+			if (IPAddress.TryParse(target.Split(':')[0], out _))
+			{
+				BanIpAddress(controller, target, duration, reason);
+			}
+			else
+			{
+				TargetResult targetResult = info.GetArgTargetResult(1);
+				ProcessTargetAction(controller, targetResult,
+					target => BanIpAddress(controller, target.IpAddress?.Split(':')[0] ?? "", duration, reason),
+					failureReason =>
+					{
+						if (failureReason == TargetFailureReason.TargetNotFound)
+						{
+							_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.targetnotfound"));
+						}
+					}
+				);
 			}
 		}
 	}

@@ -2,7 +2,7 @@ using FluentMigrator;
 
 namespace Zenith.Migrations
 {
-	[Migration(202410191)] // A migráció egyedi verziója
+	[Migration(202410191)]
 	public class Default_CreatePlayerDataTables : Migration
 	{
 		public override void Up()

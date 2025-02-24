@@ -2,12 +2,11 @@ using FluentMigrator;
 
 namespace Zenith.Migrations
 {
-	[Migration(202410192)] // Új migráció verziója
+	[Migration(202410192)]
 	public class Stats_CreateZenithStatsTables : Migration
 	{
 		public override void Up()
 		{
-			// zenith_weapon_stats tábla létrehozása, ha nem létezik
 			if (!Schema.Table("zenith_weapon_stats").Exists())
 			{
 				Create.Table("zenith_weapon_stats")
@@ -29,7 +28,6 @@ namespace Zenith.Migrations
 				Create.PrimaryKey("PK_zenith_weapon_stats").OnTable("zenith_weapon_stats").Columns("steam_id", "weapon");
 			}
 
-			// zenith_map_stats tábla létrehozása, ha nem létezik
 			if (!Schema.Table("zenith_map_stats").Exists())
 			{
 				Create.Table("zenith_map_stats")
@@ -80,13 +78,11 @@ namespace Zenith.Migrations
 
 		public override void Down()
 		{
-			// zenith_weapon_stats tábla törlése, ha létezik
 			if (Schema.Table("zenith_weapon_stats").Exists())
 			{
 				Delete.Table("zenith_weapon_stats");
 			}
 
-			// zenith_map_stats tábla törlése, ha létezik
 			if (Schema.Table("zenith_map_stats").Exists())
 			{
 				Delete.Table("zenith_map_stats");

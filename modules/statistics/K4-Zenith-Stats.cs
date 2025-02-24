@@ -26,7 +26,7 @@ public class Plugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.0.7";
+	public override string ModuleVersion => "1.0.8";
 
 	public KitsuneMenu Menu { get; private set; } = null!;
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
@@ -273,7 +273,7 @@ public class Plugin : BasePlugin
 
 	private void OnMapEnd()
 	{
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			foreach (var playerStats in _playerStats.Values)
 			{
@@ -995,7 +995,7 @@ public class Plugin : BasePlugin
 			if (_plugin._moduleServices == null)
 				return;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await LoadCurrentMapStats(_plugin._moduleServices);
 				await LoadWeaponStats(_plugin._moduleServices);

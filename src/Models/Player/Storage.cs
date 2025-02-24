@@ -315,7 +315,8 @@ public sealed partial class Player
 
 			Server.NextWorldUpdate(() =>
 			{
-				_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
+				if (Controller?.IsValid == true && Controller.Connected == PlayerConnectedState.PlayerConnected)
+					_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
 			});
 		}
 	}
@@ -393,7 +394,7 @@ public sealed partial class Player
 		if (!Loaded)
 			return;
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			await SaveDataAsync(Settings, TABLE_PLAYER_SETTINGS, moduleID);
 			await SaveDataAsync(Storage, TABLE_PLAYER_STORAGE, moduleID);
@@ -605,7 +606,7 @@ public sealed partial class Player
 
 		try
 		{
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				using var connection = plugin.Database.CreateConnection();
 				await connection.OpenAsync();
@@ -813,7 +814,7 @@ public sealed partial class Player
 
 	public static void Dispose(Plugin plugin)
 	{
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			await SaveAllOnlinePlayerDataWithTransaction(plugin);
 		});
@@ -823,7 +824,7 @@ public sealed partial class Player
 	{
 		string callerPlugin = CallerIdentifier.GetCallingPluginName();
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			try
 			{
@@ -845,5 +846,78 @@ public sealed partial class Player
 				plugin.Logger.LogError($"Error resetting offline storage for player {steamId}: {ex.Message}");
 			}
 		});
+	}
+
+	public static async Task SetOfflineData(Plugin plugin, ulong steamId, string tableName, Dictionary<string, object?> data)
+	{
+		string callerPlugin = CallerIdentifier.GetCallingPluginName();
+
+		try
+		{
+			using var connection = plugin.Database.CreateConnection();
+			await connection.OpenAsync();
+
+			var query = $@"
+				UPDATE `{TABLE_PLAYER_STORAGE}`
+				SET `{callerPlugin}.{tableName}` = @Data
+				WHERE `steam_id` = @SteamID;";
+
+			await connection.ExecuteAsync(query, new { Data = JsonSerializer.Serialize(data), SteamID = steamId });
+		}
+		catch (Exception ex)
+		{
+			plugin.Logger.LogError($"Error setting offline storage for player {steamId}: {ex.Message}");
+		}
+	}
+
+	public static async Task<T?> GetOfflineData<T>(Plugin plugin, ulong steamId, string tableName, string key)
+	{
+		string callerPlugin = CallerIdentifier.GetCallingPluginName();
+
+		try
+		{
+			using var connection = plugin.Database.CreateConnection();
+			await connection.OpenAsync();
+
+			var query = $@"
+				SELECT `{callerPlugin}.{tableName}`
+				FROM `{TABLE_PLAYER_STORAGE}`
+				WHERE `steam_id` = @SteamID;";
+
+			var result = await connection.ExecuteScalarAsync<string>(query, new { SteamID = steamId });
+
+			if (result != null)
+			{
+				using var document = JsonDocument.Parse(result);
+				var data = document.RootElement;
+
+				if (data.TryGetProperty(key, out var element))
+				{
+					try
+					{
+						return Type.GetTypeCode(typeof(T)) switch
+						{
+							TypeCode.Int32 => (T)(object)element.GetInt32(),
+							TypeCode.Int64 => (T)(object)element.GetInt64(),
+							TypeCode.Single => (T)(object)element.GetSingle(),
+							TypeCode.Double => (T)(object)element.GetDouble(),
+							TypeCode.String => (T)(object)element.GetString()!,
+							TypeCode.Boolean => (T)(object)element.GetBoolean(),
+							_ => JsonSerializer.Deserialize<T>(element.GetRawText()),
+						};
+					}
+					catch (Exception ex)
+					{
+						plugin.Logger.LogError($"Error converting value for key '{key}' to type '{typeof(T).Name}': {ex.Message}");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			plugin.Logger.LogError(ex, "Error getting offline storage data for player {SteamID}", steamId);
+		}
+
+		return default;
 	}
 }

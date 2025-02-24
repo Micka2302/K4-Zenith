@@ -78,8 +78,12 @@ namespace Zenith_Bans
 			}
 		}
 
-		public IPlayerServices? GetZenithPlayer(CCSPlayerController? player) =>
-			player == null ? null : _playerServicesCapability?.Get(player);
+		public IPlayerServices? GetZenithPlayer(CCSPlayerController? player)
+		{
+			if (player == null) return null;
+			try { return _playerServicesCapability?.Get(player); }
+			catch { return null; }
+		}
 
 		private void HandlePunishmentCommand(CCSPlayerController? controller, CommandInfo info, PunishmentType type, string durationConfigKey, string reasonConfigKey)
 		{
@@ -247,7 +251,7 @@ namespace Zenith_Bans
 			ulong? callerSteamId = caller?.SteamID;
 			ulong targetSteamId = steamId.SteamId64;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				string targetName = await GetPlayerNameAsync(targetSteamId);
 				await ApplyPunishmentInternal(callerName, callerSteamId, targetSteamId, targetName, type, duration, reason);
@@ -261,7 +265,7 @@ namespace Zenith_Bans
 			ulong targetSteamId = target.SteamID;
 			string targetName = target.PlayerName;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				if (type == PunishmentType.Warn)
 				{
@@ -470,7 +474,7 @@ namespace Zenith_Bans
 
 			ApplyPunishment(null, target, PunishmentType.Ban, banLength, reason);
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await RemovePunishmentAsync(target.SteamID, PunishmentType.Warn, null, "Reached maximum number of warnings");
 				if (_playerCache.TryGetValue(target.SteamID, out var playerData))
@@ -493,7 +497,7 @@ namespace Zenith_Bans
 			{
 				playerData.Punishments.RemoveAll(p => p.Type == PunishmentType.Mute || p.Type == PunishmentType.Gag);
 
-				_ = Task.Run(async () =>
+				Task.Run(async () =>
 				{
 					await RemovePunishmentAsync(target.SteamID, PunishmentType.Mute, null, "Removed by silence");
 					await RemovePunishmentAsync(target.SteamID, PunishmentType.Gag, null, "Removed by silence");
@@ -550,11 +554,9 @@ namespace Zenith_Bans
 
 		private async Task<bool> ValidateRemovalPermissionAsync(ulong targetSteamId, PunishmentType type, uint? removerImmunity = null)
 		{
-			// Ha nincs bekapcsolva a validáció, akkor mindig engedélyezett
 			if (!_coreAccessor.GetValue<bool>("Config", "RemovalValidations"))
 				return true;
 
-			// Keressük meg az aktív büntetést
 			var punishments = _playerCache.TryGetValue(targetSteamId, out var playerData)
 				? playerData.Punishments
 				: await GetActivePunishmentsAsync(targetSteamId);
@@ -563,18 +565,15 @@ namespace Zenith_Bans
 			if (punishment == null)
 				return false;
 
-			// Ha nincs remover (konzol), akkor mindig true
 			if (removerImmunity == null)
 				return true;
 
-			// Ha konzol adta a büntetést
 			if (!punishment.AdminSteamId.HasValue)
 			{
 				int consoleImmunity = _coreAccessor.GetValue<int>("Config", "ConsoleImmunity");
 				return removerImmunity >= consoleImmunity;
 			}
 
-			// Keressük meg a büntetést adó admin immunitását
 			using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 			await connection.OpenAsync();
 
@@ -622,7 +621,7 @@ namespace Zenith_Bans
 			uint? callerImmunity = caller != null ? AdminManager.GetPlayerImmunity(caller) : null;
 			string callerName = caller?.PlayerName ?? Localizer["k4.general.console"];
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				bool hasPermission = await ValidateRemovalPermissionAsync(targetSteamId, type, callerImmunity);
 				if (!hasPermission)
@@ -652,7 +651,7 @@ namespace Zenith_Bans
 			ulong targetSteamId = steamId.SteamId64;
 			uint? callerImmunity = caller != null ? AdminManager.GetPlayerImmunity(caller) : null;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				var activePunishments = await GetActivePunishmentsAsync(targetSteamId);
 				if (!activePunishments.Any(p => p.Type == type))
@@ -762,17 +761,20 @@ namespace Zenith_Bans
 		private void RemovePunishmentEffect(CCSPlayerController target, PunishmentType type)
 		{
 			var zenithPlayer = GetZenithPlayer(target);
+			if (zenithPlayer == null)
+				return;
+
 			switch (type)
 			{
 				case PunishmentType.Mute:
-					zenithPlayer?.SetMute(false, ActionPriority.High);
+					zenithPlayer.SetMute(false, ActionPriority.High);
 					break;
 				case PunishmentType.Gag:
-					zenithPlayer?.SetGag(false, ActionPriority.High);
+					zenithPlayer.SetGag(false, ActionPriority.High);
 					break;
 				case PunishmentType.Silence:
-					zenithPlayer?.SetMute(false, ActionPriority.High);
-					zenithPlayer?.SetGag(false, ActionPriority.High);
+					zenithPlayer.SetMute(false, ActionPriority.High);
+					zenithPlayer.SetGag(false, ActionPriority.High);
 					break;
 			}
 		}
@@ -781,7 +783,7 @@ namespace Zenith_Bans
 		{
 			if (target == null || checker == null) return;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				var punishments = _playerCache.TryGetValue(target.SteamID, out var playerData)
 					? playerData.Punishments
@@ -851,7 +853,7 @@ namespace Zenith_Bans
 
 			ulong steamId = target.SteamID;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				var punishments = _playerCache.TryGetValue(steamId, out var playerData) ? playerData.Punishments : await GetActivePunishmentsAsync(steamId);
 				var warnings = punishments.Where(p => p.Type == PunishmentType.Warn).ToList();
@@ -893,7 +895,7 @@ namespace Zenith_Bans
 			string playerName = player.PlayerName;
 			string ipAddress = player.IpAddress.Split(":")[0];
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				PlayerData? playerData = await LoadOrUpdatePlayerDataAsync(steamId, playerName, ipAddress);
 				if (playerData == null)
@@ -938,16 +940,6 @@ namespace Zenith_Bans
 					{
 						AdminManager.SetPlayerCommandOverride(player, customOverride.Key, customOverride.Value);
 					}
-
-					IPlayerServices? playerServices = GetZenithPlayer(player);
-					if (playerData.Punishments.Any(p => p.Type == PunishmentType.Mute && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
-						playerServices?.SetMute(true, ActionPriority.High);
-
-					if (playerData.Punishments.Any(p => p.Type == PunishmentType.Gag && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
-						playerServices?.SetGag(true, ActionPriority.High);
-
-					_playerCache[steamId] = playerData;
-					_disconnectedPlayers.RemoveAll(p => p.SteamId == steamId);
 				});
 			});
 		}
@@ -957,7 +949,7 @@ namespace Zenith_Bans
 			string callerName = controller?.PlayerName ?? Localizer["k4.general.console"];
 			ulong targetSteamId = target.SteamID;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await AddAdminAsync(targetSteamId, group);
 				var (permissions, immunity) = await GetGroupDetailsAsync(group);
@@ -1008,7 +1000,7 @@ namespace Zenith_Bans
 			string callerName = controller?.PlayerName ?? Localizer["k4.general.console"];
 			ulong targetSteamId = target.SteamID;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await RemoveAdminAsync(targetSteamId);
 
@@ -1038,7 +1030,7 @@ namespace Zenith_Bans
 		private void AddOfflineAdmin(CCSPlayerController? controller, SteamID steamId, string group)
 		{
 			string callerName = controller?.PlayerName ?? Localizer["k4.general.console"];
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await AddAdminAsync(steamId.SteamId64, group);
 				string targetName = await GetPlayerNameAsync(steamId.SteamId64);
@@ -1054,7 +1046,7 @@ namespace Zenith_Bans
 			string callerName = controller?.PlayerName ?? Localizer["k4.general.console"];
 			ulong targetSteamId = steamId.SteamId64;
 
-			_ = Task.Run(async () =>
+			Task.Run(async () =>
 			{
 				await RemoveAdminAsync(targetSteamId);
 				string targetName = await GetPlayerNameAsync(targetSteamId);
@@ -1113,7 +1105,7 @@ namespace Zenith_Bans
 
 			try
 			{
-				_ = Task.Run(async () =>
+				Task.Run(async () =>
 				{
 					var response = await _httpClient.PostAsync(_webhookUrl, content);
 					if (!response.IsSuccessStatusCode)
@@ -1128,7 +1120,7 @@ namespace Zenith_Bans
 			}
 		}
 
-		public SteamID GetSteamID(string input) =>
+		public static SteamID GetSteamID(string input) =>
 			ulong.TryParse(input, out ulong steamId) ? new SteamID(steamId) : new SteamID(input);
 
 		public void DisconnectPlayer(CCSPlayerController player, NetworkDisconnectionReason reason, string stringReason, bool kick)
@@ -1174,6 +1166,95 @@ namespace Zenith_Bans
 					_disconnectTImers.Remove(player);
 				}
 			}, TimerFlags.REPEAT);
+		}
+
+		private void BanIpAddress(CCSPlayerController? caller, string ipAddress, int? duration, string reason)
+		{
+			if (string.IsNullOrEmpty(ipAddress))
+			{
+				_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "k4.banip.invalid-ip"));
+				return;
+			}
+
+			string callerName = caller?.PlayerName ?? Localizer["k4.general.console"];
+			ulong? callerSteamId = caller?.SteamID;
+
+			Task.Run(async () =>
+			{
+				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
+				await connection.OpenAsync();
+
+				var query = $@"
+					SELECT p.steam_id, p.name
+					FROM zenith_bans_players p
+					JOIN zenith_bans_ip_addresses ip ON p.id = ip.player_id
+					WHERE ip.ip_address = @IpAddress";
+
+				var affectedPlayers = await connection.QueryAsync<(ulong SteamId, string Name)>(query, new { IpAddress = ipAddress });
+
+				if (!affectedPlayers.Any())
+				{
+					var insertPlayerQuery = $@"
+						INSERT INTO zenith_bans_players (steam_id, name, last_online)
+						VALUES (@SteamId, @Name, NOW());
+						SELECT LAST_INSERT_ID();";
+
+					var randomSteamId = 76561100000000000 + new Random().Next(0, 999999999);
+					var playerId = await connection.ExecuteScalarAsync<int>(insertPlayerQuery,
+						new { SteamId = randomSteamId, Name = $"Unknown_{ipAddress.Replace(".", "_")}" });
+
+					var insertIpQuery = $@"
+						INSERT INTO zenith_bans_ip_addresses (player_id, ip_address)
+						VALUES (@PlayerId, @IpAddress)";
+
+					await connection.ExecuteAsync(insertIpQuery, new { PlayerId = playerId, IpAddress = ipAddress });
+
+					await AddPunishmentAsync((ulong)randomSteamId, PunishmentType.Ban, duration, reason, callerSteamId);
+					affectedPlayers = [((ulong)randomSteamId, $"Unknown_{ipAddress}")];
+				}
+				else
+				{
+					foreach (var (SteamId, Name) in affectedPlayers)
+					{
+						await AddPunishmentAsync(SteamId, PunishmentType.Ban, duration, reason, callerSteamId);
+					}
+				}
+
+				Server.NextWorldUpdate(() =>
+				{
+					string durationString = duration.HasValue ? $" ({duration} {Localizer["k4.general.minutes"]})" : "";
+					Logger.LogWarning($"IP {ipAddress} was banned by {callerName}{(callerSteamId.HasValue ? $" ({callerSteamId})" : "")}{durationString} ({reason})");
+
+					var players = Utilities.GetPlayers();
+					foreach (var player in players)
+					{
+						if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV)
+						{
+							if (ShouldShowActivity(callerSteamId, player, true))
+							{
+								_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.banip.success", callerName, ipAddress, durationString, reason));
+							}
+							else if (ShouldShowActivity(callerSteamId, player, false))
+							{
+								_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.banip.success", Localizer.ForPlayer(player, "k4.general.admin"), ipAddress, durationString, reason));
+							}
+
+							if (player.IpAddress?.Split(':')[0] == ipAddress)
+							{
+								DisconnectPlayer(player, NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED, reason, false);
+							}
+						}
+					}
+
+					SendDiscordWebhookAsync("k4.discord.banip", true, new Dictionary<string, string>
+					{
+						["ip"] = ipAddress,
+						["duration"] = durationString,
+						["reason"] = reason,
+						["admin"] = $"{(callerSteamId.HasValue ? $"[{callerName}](https://steamcommunity.com/profiles/{callerSteamId})" : callerName)} {(callerSteamId.HasValue ? $"({callerSteamId})" : "")}"
+					});
+				});
+			});
 		}
 	}
 }

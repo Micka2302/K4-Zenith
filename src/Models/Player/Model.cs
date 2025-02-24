@@ -57,7 +57,7 @@ public sealed partial class Player
 
 		AddToList(this);
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			try
 			{
@@ -289,7 +289,7 @@ public sealed partial class Player
 	{
 		_plugin._moduleServices?.InvokeZenithPlayerUnloaded(Controller!);
 
-		_ = Task.Run(async () =>
+		Task.Run(async () =>
 		{
 			try
 			{

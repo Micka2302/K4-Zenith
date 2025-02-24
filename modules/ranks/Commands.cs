@@ -1,4 +1,3 @@
-
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
@@ -101,13 +100,6 @@ public sealed partial class Plugin : BasePlugin
 
 	private void ProcessTargetAction(CCSPlayerController? player, CommandInfo info, Func<IPlayerServices, long?, (string message, string logMessage)> action, bool requireAmount = true)
 	{
-		TargetResult targets = info.GetArgTargetResult(1);
-		if (!targets.Any())
-		{
-			_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.no-target"));
-			return;
-		}
-
 		long? amount = null;
 		if (requireAmount)
 		{
@@ -117,6 +109,13 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 			amount = parsedAmount;
+		}
+
+		TargetResult targets = info.GetArgTargetResult(1);
+		if (!targets.Any())
+		{
+			_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.no-target"));
+			return;
 		}
 
 		foreach (var target in targets)
@@ -138,8 +137,55 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
+	private void ProcessOfflineTargetAction(ulong steamID, char operatation, long amount)
+	{
+		if (_moduleServices == null)
+			return;
+
+		Task.Run(async () =>
+		{
+			long points = await _moduleServices.GetOfflineData<long>(steamID, "storage", "Points");
+			switch (operatation)
+			{
+				case '+':
+					points += amount;
+					break;
+				case '-':
+					points -= amount;
+					break;
+				case '=':
+					points = amount;
+					break;
+			}
+
+			if (points < 0)
+				points = 0;
+
+			string rank = DetermineRanks(points).CurrentRank?.Name ?? "k4.phrases.rank.none";
+			await _moduleServices.SetOfflineData(steamID, "storage", new Dictionary<string, object?> { { "Points", points }, { "Rank", rank } });
+		});
+	}
+
 	public void OnGivePoints(CCSPlayerController? player, CommandInfo info)
 	{
+		if (ulong.TryParse(info.GetArg(1), out ulong steamId))
+		{
+			if (!int.TryParse(info.GetArg(2), out int amount) || amount <= 0)
+			{
+				_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.invalid-amount"));
+				return;
+			}
+
+			var target = Utilities.GetPlayerFromSteamId(steamId);
+			if (target == null)
+			{
+				ProcessOfflineTargetAction(steamId, '+', amount);
+				Logger.LogWarning("{0} ({1}) gave {2} {3} rank points [OFFLINE]",
+					player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0, steamId, amount);
+				return;
+			}
+		}
+
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{
@@ -158,6 +204,24 @@ public sealed partial class Plugin : BasePlugin
 
 	public void OnTakePoints(CCSPlayerController? player, CommandInfo info)
 	{
+		if (ulong.TryParse(info.GetArg(1), out ulong steamId))
+		{
+			if (!int.TryParse(info.GetArg(2), out int amount) || amount <= 0)
+			{
+				_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.invalid-amount"));
+				return;
+			}
+
+			var target = Utilities.GetPlayerFromSteamId(steamId);
+			if (target == null)
+			{
+				ProcessOfflineTargetAction(steamId, '-', amount);
+				Logger.LogWarning("{0} ({1}) took {2} rank points from {3} [OFFLINE]",
+					player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0, amount, steamId);
+				return;
+			}
+		}
+
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{
@@ -176,6 +240,24 @@ public sealed partial class Plugin : BasePlugin
 
 	public void OnSetPoints(CCSPlayerController? player, CommandInfo info)
 	{
+		if (ulong.TryParse(info.GetArg(1), out ulong steamId))
+		{
+			if (!int.TryParse(info.GetArg(2), out int amount) || amount <= 0)
+			{
+				_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.invalid-amount"));
+				return;
+			}
+
+			var target = Utilities.GetPlayerFromSteamId(steamId);
+			if (target == null)
+			{
+				ProcessOfflineTargetAction(steamId, '=', amount);
+				Logger.LogWarning("{0} ({1}) set {2}'s rank points to {3} [OFFLINE]",
+					player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0, steamId, amount);
+				return;
+			}
+		}
+
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{

@@ -2,12 +2,11 @@ using FluentMigrator;
 
 namespace Zenith.Migrations
 {
-	[Migration(202410193)] // Új migráció verziója
+	[Migration(202410193)]
 	public class Bans_CreateZenithBansTables : Migration
 	{
 		public override void Up()
 		{
-			// zenith_bans_players table creation
 			if (!Schema.Table("zenith_bans_players").Exists())
 			{
 				Create.Table("zenith_bans_players")
@@ -20,7 +19,6 @@ namespace Zenith.Migrations
 				Execute.Sql("ALTER TABLE zenith_bans_players CHARACTER SET = utf8mb4, COLLATE = utf8mb4_unicode_ci;");
 			}
 
-			// zenith_bans_player_ranks table creation
 			if (!Schema.Table("zenith_bans_player_ranks").Exists())
 			{
 				Create.Table("zenith_bans_player_ranks")
@@ -36,7 +34,6 @@ namespace Zenith.Migrations
 				Execute.Sql("ALTER TABLE zenith_bans_player_ranks CHARACTER SET = utf8mb4, COLLATE = utf8mb4_unicode_ci;");
 			}
 
-			// zenith_bans_admin_groups table creation
 			if (!Schema.Table("zenith_bans_admin_groups").Exists())
 			{
 				Create.Table("zenith_bans_admin_groups")
@@ -48,7 +45,6 @@ namespace Zenith.Migrations
 				Execute.Sql("ALTER TABLE zenith_bans_admin_groups CHARACTER SET = utf8mb4, COLLATE = utf8mb4_unicode_ci;");
 			}
 
-			// zenith_bans_punishments table creation
 			if (!Schema.Table("zenith_bans_punishments").Exists())
 			{
 				Create.Table("zenith_bans_punishments")
@@ -70,7 +66,6 @@ namespace Zenith.Migrations
 
 		public override void Down()
 		{
-			// Táblák törlése, ha a migráció visszaáll
 			if (Schema.Table("zenith_bans_punishments").Exists())
 				Delete.Table("zenith_bans_punishments");
 

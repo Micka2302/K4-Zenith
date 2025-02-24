@@ -113,7 +113,7 @@ namespace Zenith
 				=> _player.SavePlayerData();
 
 			public void LoadPlayerData()
-				=> _ = Task.Run(_player.LoadPlayerData);
+				=> Task.Run(_player.LoadPlayerData);
 
 			public void ResetModuleSettings()
 				=> _player.ResetModuleSettings();
@@ -256,6 +256,12 @@ namespace Zenith
 
 			public void ResetModuleStorage(CCSPlayerController player)
 				=> Player.ResetOfflineData(_plugin, player.SteamID, Player.TABLE_PLAYER_SETTINGS);
+
+			public async Task<T?> GetOfflineData<T>(ulong steamId, string tableName, string key)
+				=> await Player.GetOfflineData<T>(_plugin, steamId, tableName, key);
+
+			public async Task SetOfflineData(ulong steamId, string tableName, Dictionary<string, object?> data)
+				=> await Player.SetOfflineData(_plugin, steamId, tableName, data);
 		}
 	}
 }
