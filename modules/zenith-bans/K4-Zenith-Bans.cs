@@ -18,7 +18,7 @@ public sealed partial class Plugin : BasePlugin
 
 	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "1.1.10";
+	public override string ModuleVersion => "1.1.11";
 
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
@@ -127,7 +127,6 @@ public sealed partial class Plugin : BasePlugin
 		{
 			_zenithEvents.OnZenithCoreUnload += OnZenithCoreUnload;
 			_zenithEvents.OnZenithChatMessage += OnZenithChatMessage;
-			_zenithEvents.OnZenithPlayerLoaded += OnZenithPlayerLoaded;
 		}
 		else
 		{
@@ -176,26 +175,6 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
-	}
-
-	private void OnZenithPlayerLoaded(CCSPlayerController player)
-	{
-		var zenithPlayer = GetZenithPlayer(player);
-		if (zenithPlayer == null)
-			return;
-
-		var playerData = _playerCache[zenithPlayer.SteamID];
-
-		IPlayerServices? playerServices = GetZenithPlayer(player);
-		if (playerData.Punishments.Any(p => p.Type == PunishmentType.Mute && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
-			playerServices?.SetMute(true, ActionPriority.High);
-
-		if (playerData.Punishments.Any(p => p.Type == PunishmentType.Gag && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
-			playerServices?.SetGag(true, ActionPriority.High);
-
-		_playerCache[zenithPlayer.SteamID] = playerData;
-		_disconnectedPlayers.RemoveAll(p => p.SteamId == zenithPlayer.SteamID);
-
 	}
 
 	private void OnZenithCoreUnload(bool hotReload)

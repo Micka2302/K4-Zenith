@@ -1,3 +1,8 @@
+# 2025.02.26 - 1.0.39
+
+- fix: Bans module connect full issue
+- fix: Wrong scoreboard rank with 0 points when a rank is set to a 0 point boundry
+
 # 2025.02.24 - 1.0.38
 
 - feat: Enhanced rank point commands to support offline targeting via SteamID

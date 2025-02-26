@@ -180,12 +180,10 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var player in GetValidPlayers())
 		{
-			long currentPoints = player.GetStorage<long>("Points");
-			if (currentPoints <= 0)
-				continue;
+			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
-			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, player.GetStorage<long>("Points"), rankMax, rankBase, rankMargin);
+			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, currentPoints, rankMax, rankBase, rankMargin);
 		}
 	}
 

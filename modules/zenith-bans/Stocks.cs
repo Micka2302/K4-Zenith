@@ -940,6 +940,16 @@ namespace Zenith_Bans
 					{
 						AdminManager.SetPlayerCommandOverride(player, customOverride.Key, customOverride.Value);
 					}
+
+					IPlayerServices? playerServices = GetZenithPlayer(player);
+					if (playerData.Punishments.Any(p => p.Type == PunishmentType.Mute && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
+						playerServices?.SetMute(true, ActionPriority.High);
+
+					if (playerData.Punishments.Any(p => p.Type == PunishmentType.Gag && p.ExpiresAt.HasValue && p.ExpiresAt.Value.GetDateTime() > DateTime.Now))
+						playerServices?.SetGag(true, ActionPriority.High);
+
+					_playerCache[steamId] = playerData;
+					_disconnectedPlayers.RemoveAll(p => p.SteamId == steamId);
 				});
 			});
 		}
