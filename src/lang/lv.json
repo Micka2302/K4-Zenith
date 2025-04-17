@@ -1,0 +1,28 @@
+{
+  "k4.general.prefix": "{silver}- {gold}+ Zenith + {silver}- ",
+
+  "k4.tag.all": "{white} ",
+  "k4.tag.dead": "{grey}[DEAD] ",
+  "k4.tag.team.ct": "{lightblue}[CT] ",
+  "k4.tag.team.t": "{yellow}[T] ",
+  "k4.tag.team.spectator": "{white}[SPEC] ",
+  "k4.tag.team.unassigned": "{white}[UNASSIGNED] ",
+  "k4.tag.separator": "{white}: ",
+
+  "k4.command.help": "{silver}Lietojums: {lime}!{0} {1}",
+  "k4.command.no-permission": "{lightred}Tev nav pieejas izmantot šo komandu.",
+  "k4.command.server-only": "{lightred}Šo komandu var izmantot tikai serveris.",
+  "k4.command.client-only": "{lightred}Šo komandu var izmantot tikai spēlētāji.",
+
+  "k4.settings.title": " + Iestatījumi +",
+  "k4.settings.disabled": "Izslēgts",
+  "k4.settings.enabled": "Ieslēgts",
+  "k4.settings.invalid-input": "Nederīgs inputs. Lūdzu, ievadi derīgu veselu skaitli.",
+
+  "settings.ShowClanTags": "Rādīt klana tagu",
+  "settings.ShowChatTags": "Rādīt čata tagu",
+  "settings.FreezeInMenu": "Iesaldēt izvēlnē",
+
+  "reset.storage.success": "Veiksmīgi resetota {0} krātuve visiem spēlētājiem.",
+  "reset.storage.all.modules": "visi moduļi"
+}
