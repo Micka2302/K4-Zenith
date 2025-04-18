@@ -1,3 +1,8 @@
+# 2025.04.18 - 1.0.40
+
+- fix: Activity settings didn't respect 0 values
+- chore: Add latvian translation
+
 # 2025.02.26 - 1.0.39
 
 - fix: Bans module connect full issue
