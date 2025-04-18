@@ -168,22 +168,23 @@ public sealed partial class Plugin : BasePlugin
 		if (!adminSteamId.HasValue) return true; // Always show console activity
 		if (!_coreAccessor.HasValue("Core", "ShowActivity")) return true; // Show activity if no ZenithBans installed
 
-		int _showActivity = _coreAccessor.GetValue<int>("Core", "ShowActivity");
+		int showActivity = _coreAccessor.GetValue<int>("Core", "ShowActivity");
+		if (showActivity == 0) return false; // If the setting is 0, never show
 
 		bool isRoot = AdminManager.PlayerHasPermissions(player, "@zenith/root");
 		bool isPlayerAdmin = AdminManager.PlayerHasPermissions(player, "@zenith/admin");
 
-		if (isRoot && (_showActivity & 16) != 0) return true; // Always show to root
+		if (isRoot && (showActivity & 16) != 0) return true; // Always show to root
 
 		if (isPlayerAdmin)
 		{
-			if ((_showActivity & 4) == 0) return false; // Don't show to admins
-			if (showName && (_showActivity & 8) == 0) return false; // Don't show names to admins
+			if ((showActivity & 4) == 0) return false; // Don't show to admins
+			if (showName && (showActivity & 8) == 0) return false; // Don't show names to admins
 		}
 		else
 		{
-			if ((_showActivity & 1) == 0) return false; // Don't show to non-admins
-			if (showName && (_showActivity & 2) == 0) return false; // Don't show names to non-admins
+			if ((showActivity & 1) == 0) return false; // Don't show to non-admins
+			if (showName && (showActivity & 2) == 0) return false; // Don't show names to non-admins
 		}
 
 		return true;
