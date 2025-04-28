@@ -443,11 +443,12 @@ namespace Zenith_Bans
 
 		private bool ShouldShowActivity(ulong? adminSteamId, CCSPlayerController player, bool showName)
 		{
-			if (!adminSteamId.HasValue) return true; // Always show console activity
 			if (!_coreAccessor.HasValue("Core", "ShowActivity")) return true; // Show activity if no ZenithBans installed
 
 			int showActivity = _coreAccessor.GetValue<int>("Core", "ShowActivity");
 			if (showActivity == 0) return false; // If the setting is 0, never show
+
+			if (!adminSteamId.HasValue) return true; // Always show console activity
 
 			bool isRoot = AdminManager.PlayerHasPermissions(player, "@zenith/root");
 			bool isPlayerAdmin = AdminManager.PlayerHasPermissions(player, "@zenith/admin");
