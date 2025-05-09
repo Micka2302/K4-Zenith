@@ -1,0 +1,10 @@
+{
+  "customtags.menu.title": "選擇標籤設定",
+  "customtags.menu.default": "預設",
+  "customtags.menu.none": "無",
+  "customtags.applied.default": "{silver}已套用預設標籤設定。",
+  "customtags.applied.none": "{silver}已移除所有標籤設定。",
+  "customtags.applied.config": "{silver}已套用 {gold}{0} {silver}標籤設定。",
+  "customtags.applied.default_predefined": "{silver}已套用預設的標籤組合：{gold}{0}",
+  "customtags.menu.no-tags": "無可用的標籤"
+}
