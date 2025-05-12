@@ -64,4 +64,6 @@ obj/
 
 Zenith
 *.zip
+
 zenith-optimization-plan.md
+**/.claude/settings.local.json

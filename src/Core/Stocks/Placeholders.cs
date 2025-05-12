@@ -1,13 +1,9 @@
 using System.Collections.Concurrent;
-using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
-using CounterStrikeSharp.API.Modules.Utils;
-using MaxMind.GeoIP2;
 using Microsoft.Extensions.Logging;
 using Zenith.Models;
-using System.Reflection;
 
 namespace Zenith
 {
@@ -15,15 +11,9 @@ namespace Zenith
 	{
 		public readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<CCSPlayerController, string>>> _pluginPlayerPlaceholders = new();
 		public readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<string>>> _pluginServerPlaceholders = new();
-
 		private readonly ConcurrentDictionary<string, string> _placeholderFormatCache = new();
 
-		private static readonly HashSet<char> _chatColorChars = [.. typeof(ChatColors)
-			.GetFields(BindingFlags.Public | BindingFlags.Static)
-			.Where(f => f.FieldType == typeof(char))
-			.Select(f => (char)f.GetValue(null)!)];
-
-		private void Initialize_Placeholders()
+		public void Initialize_Placeholders()
 		{
 			RegisterZenithPlayerPlaceholder("userid", p => p.UserId?.ToString() ?? "Unknown");
 			RegisterZenithPlayerPlaceholder("name", p => p.PlayerName);
@@ -35,9 +25,7 @@ namespace Zenith
 			RegisterZenithServerPlaceholder("server_name", () => ConVar.Find("hostname")?.StringValue ?? "Unknown");
 			RegisterZenithServerPlaceholder("map_name", () => Server.MapName);
 			RegisterZenithServerPlaceholder("max_players", Server.MaxPlayers.ToString);
-
-			// ? Arena Support
-			RegisterZenithPlayerPlaceholder("arena", GetPlayerArenaName);
+			RegisterZenithPlayerPlaceholder("arena", p => GetPlayerArenaName(p));
 		}
 
 		public string ReplacePlaceholders(CCSPlayerController? player, string text)
@@ -51,16 +39,13 @@ namespace Zenith
 
 		public string ReplacePlaceholdersInternal(string text, bool isPlayerPlaceholder, CCSPlayerController? player)
 		{
-			if (string.IsNullOrEmpty(text))
-				return text;
-
-			if (isPlayerPlaceholder && (player == null || !player.IsValid))
+			if (string.IsNullOrEmpty(text) || (isPlayerPlaceholder && (player == null || !player.IsValid)))
 				return text;
 
 			if (!ContainsAnyPlaceholder(text))
 				return text;
 
-			Dictionary<string, string> replacements = [];
+			var replacements = new Dictionary<string, string>(16);
 
 			if (isPlayerPlaceholder)
 			{
@@ -73,14 +58,10 @@ namespace Zenith
 
 						foreach (var pair in pluginPlaceholders)
 						{
-							string key = pair.Key;
-							string placeholder = GetCachedPlaceholderFormat(key);
+							string placeholder = GetCachedPlaceholderFormat(pair.Key);
 
 							if (text.Contains(placeholder, StringComparison.Ordinal))
-							{
-								string value = pair.Value(player!);
-								replacements[placeholder] = value;
-							}
+								replacements[placeholder] = pair.Value(player!);
 						}
 					}
 				}
@@ -96,14 +77,10 @@ namespace Zenith
 
 						foreach (var pair in pluginPlaceholders)
 						{
-							string key = pair.Key;
-							string placeholder = GetCachedPlaceholderFormat(key);
+							string placeholder = GetCachedPlaceholderFormat(pair.Key);
 
 							if (text.Contains(placeholder, StringComparison.Ordinal))
-							{
-								string value = pair.Value();
-								replacements[placeholder] = value;
-							}
+								replacements[placeholder] = pair.Value();
 						}
 					}
 				}
@@ -115,9 +92,7 @@ namespace Zenith
 			string result = text;
 
 			foreach (var replacement in replacements.OrderByDescending(x => x.Key.Length))
-			{
 				result = result.Replace(replacement.Key, replacement.Value, StringComparison.Ordinal);
-			}
 
 			return result;
 		}
@@ -135,13 +110,10 @@ namespace Zenith
 		public void RegisterZenithPlayerPlaceholder(string key, Func<CCSPlayerController, string> valueFunc)
 		{
 			string callingPlugin = CallerIdentifier.GetCallingPluginName();
-
 			var placeholders = _pluginPlayerPlaceholders.GetOrAdd(callingPlugin, _ => new ConcurrentDictionary<string, Func<CCSPlayerController, string>>());
 
 			if (placeholders.ContainsKey(key))
-			{
 				Logger.LogWarning($"Player placeholder '{key}' already exists for plugin '{callingPlugin}', overwriting.");
-			}
 
 			placeholders[key] = valueFunc;
 		}
@@ -149,13 +121,10 @@ namespace Zenith
 		public void RegisterZenithServerPlaceholder(string key, Func<string> valueFunc)
 		{
 			string callingPlugin = CallerIdentifier.GetCallingPluginName();
-
 			var placeholders = _pluginServerPlaceholders.GetOrAdd(callingPlugin, _ => new ConcurrentDictionary<string, Func<string>>());
 
 			if (placeholders.ContainsKey(key))
-			{
 				Logger.LogWarning($"Server placeholder '{key}' already exists for plugin '{callingPlugin}', overwriting.");
-			}
 
 			placeholders[key] = valueFunc;
 		}
@@ -174,14 +143,6 @@ namespace Zenith
 			}
 		}
 
-		public void DisposeModule(string callingPlugin)
-		{
-			Logger.LogInformation($"Disposing module '{callingPlugin}' and freeing resources.");
-
-			RemoveModuleCommands(callingPlugin);
-			RemoveModulePlaceholders(callingPlugin);
-		}
-
 		public void ListAllPlaceholders(string? pluginName = null, CCSPlayerController? player = null)
 		{
 			if (pluginName != null)
@@ -191,9 +152,7 @@ namespace Zenith
 			else
 			{
 				foreach (var plugin in _pluginPlayerPlaceholders.Keys.Union(_pluginServerPlaceholders.Keys).Distinct())
-				{
 					ListPlaceholdersForPlugin(plugin, player);
-				}
 			}
 
 			Player.Find(player)?.Print("Placeholder list has been printed to your console.");
@@ -207,89 +166,23 @@ namespace Zenith
 			{
 				PrintToConsole("  Player placeholders:", player);
 				foreach (var placeholder in playerPlaceholders.Keys)
-				{
 					PrintToConsole($"    - {placeholder}", player);
-				}
 			}
 
 			if (_pluginServerPlaceholders.TryGetValue(pluginName, out var serverPlaceholders))
 			{
 				PrintToConsole("  Server placeholders:", player);
 				foreach (var placeholder in serverPlaceholders.Keys)
-				{
 					PrintToConsole($"    - {placeholder}", player);
-				}
 			}
 		}
 
 		public static void PrintToConsole(string text, CCSPlayerController? player)
 		{
 			if (player == null)
-			{
 				Server.PrintToConsole(text);
-			}
 			else
-			{
 				player.PrintToConsole(text);
-			}
-		}
-
-		private (string ShortName, string LongName) GetCountryFromIP(CCSPlayerController? player)
-		{
-			if (player is null || !Player.List.TryGetValue(player.SteamID, out var playerData))
-				return ("??", "Unknown");
-
-			if (playerData._country != ("??", "Unknown"))
-				return playerData._country;
-
-			playerData._country = player == null
-				? ("??", "Unknown")
-				: GetCountryFromIP(player.IpAddress?.Split(':')[0]);
-
-			return playerData._country;
-		}
-
-		private (string ShortName, string LongName) GetCountryFromIP(string? ipAddress)
-		{
-			if (string.IsNullOrEmpty(ipAddress))
-				return ("??", "Unknown");
-
-			string databasePath = Path.Combine(ModuleDirectory, "GeoLite2-Country.mmdb");
-			if (!File.Exists(databasePath))
-				return ("??", "Unknown");
-
-			try
-			{
-				using var reader = new DatabaseReader(databasePath);
-				var response = reader.Country(ipAddress);
-
-				return (
-					response.Country.IsoCode ?? "??",
-					response.Country.Name ?? "Unknown"
-				);
-			}
-			catch
-			{
-				return ("??", "Unknown");
-			}
-		}
-
-		public static string RemoveColorChars(string input)
-		{
-			if (string.IsNullOrEmpty(input))
-				return input;
-
-			var result = new StringBuilder(input.Length);
-
-			foreach (char c in input)
-			{
-				if (!_chatColorChars.Contains(c))
-				{
-					result.Append(c);
-				}
-			}
-
-			return result.ToString();
 		}
 	}
 }

@@ -156,6 +156,7 @@ namespace Zenith
 
 			ConfigManager.Dispose();
 			Player.Dispose(this);
+
 			RemoveAllCommands();
 			RemoveModulePlaceholders();
 		}

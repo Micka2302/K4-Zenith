@@ -12,7 +12,9 @@
 
 --- Optimisation notes ---
 
-- optimise: Core > Placeholder usages has been improved
+- optimise: Core > Reworked placeholder handlings
+- optimise: Core > Reworked GeoIP based parts
+- optimise: Core > Reworked TextFormat parts
 
 # 2025.04.18 - 1.0.40
 
