@@ -15,10 +15,10 @@ namespace ZenithAPI
         /// <param name="player">The player controller</param>
         /// <param name="capability">The player capability for Zenith services</param>
         /// <returns>The player services, or null if not available</returns>
-        public static IPlayerServices? GetZenithPlayer(CCSPlayerController? player, PlayerCapability<IPlayerServices> capability)
+        public static IPlayerServices? GetZenithPlayer(this PlayerCapability<IPlayerServices>? capability, CCSPlayerController? player)
         {
             if (player == null) return null;
-            try { return capability.Get(player); }
+            try { return capability?.Get(player); }
             catch { return null; }
         }
 
@@ -26,16 +26,11 @@ namespace ZenithAPI
         /// Generic player cache implementation to reduce code duplication across modules
         /// </summary>
         /// <typeparam name="TValue">The type of cache value</typeparam>
-        public class PlayerCache<TValue>
+        public class PlayerCache<TValue>(TimeSpan expiration)
         {
             private readonly ConcurrentDictionary<ulong, TValue> _cache = new();
-            private readonly TimeSpan _expiration;
+            private readonly TimeSpan _expiration = expiration;
             private readonly ConcurrentDictionary<ulong, DateTime> _lastUpdateTimes = new();
-
-            public PlayerCache(TimeSpan expiration)
-            {
-                _expiration = expiration;
-            }
 
             public bool TryGetValue(ulong steamId, out TValue value)
             {
@@ -95,22 +90,31 @@ namespace ZenithAPI
         }
 
         /// <summary>
-        /// Formats a number to a shorter string format (e.g. 1.2k, 3.5M)
+        /// Formats a number to a shorter string format (e.g. 1.25k, 3.45M)
         /// </summary>
-        public static string FormatNumber(int number)
+        public static string FormatNumber(long number)
         {
-            if (number >= 1000000)
+            // Handle negative numbers
+            bool isNegative = number < 0;
+            long absNumber = Math.Abs(number);
+
+            string result;
+            if (absNumber >= 1_000_000)
             {
-                double millions = number / 1000000.0;
-                return $"{millions:F1}M";
+                double millions = absNumber / 1_000_000.0;
+                result = $"{millions:F2}M";
             }
-            else if (number >= 1000)
+            else if (absNumber >= 1_000)
             {
-                double thousands = number / 1000.0;
-                return $"{thousands:F1}k";
+                double thousands = absNumber / 1_000.0;
+                result = $"{thousands:F2}k";
+            }
+            else
+            {
+                result = absNumber.ToString();
             }
 
-            return number.ToString();
+            return isNegative ? "-" + result : result;
         }
 
         /// <summary>
@@ -122,30 +126,6 @@ namespace ZenithAPI
                 return input;
 
             return string.Concat(input.AsSpan(0, maxLength), "...");
-        }
-
-        /// <summary>
-        /// Strips comments starting with // from a JSON string
-        /// </summary>
-        public static string StripJsonComments(string json)
-        {
-            if (string.IsNullOrEmpty(json))
-                return json;
-
-            var result = new System.Text.StringBuilder(json.Length);
-            using (var reader = new StringReader(json))
-            {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    string trimmedLine = line.TrimStart();
-                    if (!trimmedLine.StartsWith("//"))
-                    {
-                        result.AppendLine(line);
-                    }
-                }
-            }
-            return result.ToString();
         }
     }
 }
