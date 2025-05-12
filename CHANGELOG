@@ -16,6 +16,8 @@
 - optimise: Core > Reworked GeoIP based parts
 - optimise: Core > Reworked TextFormat parts
 - optimise: Core > Added batch operations to database
+- optimise: Core > Reworked config handler
+- optimise: Core > Reworked CallerIdentifier class
 
 # 2025.04.18 - 1.0.40
 
