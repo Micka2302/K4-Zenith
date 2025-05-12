@@ -15,6 +15,7 @@
 - optimise: Core > Reworked placeholder handlings
 - optimise: Core > Reworked GeoIP based parts
 - optimise: Core > Reworked TextFormat parts
+- optimise: Core > Added batch operations to database
 
 # 2025.04.18 - 1.0.40
 
