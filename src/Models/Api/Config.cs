@@ -11,6 +11,7 @@ using System.Globalization;
 namespace Zenith
 {
 	public sealed partial class Plugin : BasePlugin
+
 	{
 		private ConfigManager _configManager = null!;
 
@@ -19,7 +20,7 @@ namespace Zenith
 			try
 			{
 				string configDirectory = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp", "configs", "zenith");
-				_configManager = new ConfigManager(configDirectory, Logger);
+				_configManager = new ConfigManager(configDirectory, this);
 				RegisterCoreConfigs();
 			}
 			catch (Exception ex)
@@ -125,6 +126,7 @@ namespace Zenith
 		private static readonly TimeSpan _saveDelay = TimeSpan.FromMilliseconds(500); // Batch saves with 500ms delay
 
 		private static ILogger Logger = null!;
+		private static Plugin Plugin = null!;
 		public static bool GlobalChangeTracking { get; set; } = false;
 		public static bool GlobalAutoReloadEnabled { get; set; } = false;
 		private static FileSystemWatcher? _watcher;
@@ -142,10 +144,11 @@ namespace Zenith
 				.ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
 				.Build());
 
-		public ConfigManager(string baseConfigDirectory, ILogger logger)
+		public ConfigManager(string baseConfigDirectory, Plugin plugin)
 		{
 			_baseConfigDirectory = baseConfigDirectory;
-			Logger = logger;
+			Logger = plugin.Logger;
+			Plugin = plugin;
 			Directory.CreateDirectory(_baseConfigDirectory);
 			Directory.CreateDirectory(Path.Combine(_baseConfigDirectory, "modules"));
 
@@ -270,6 +273,9 @@ namespace Zenith
 								configChanged = true;
 
 								InvalidateConfigCache(moduleName, group.Key, item.Key);
+
+								// Trigger the OnZenithConfigChanged event for external changes
+								Plugin._moduleServices?.InvokeZenithConfigChanged(moduleName, group.Key, item.Key, item.Value.CurrentValue);
 							}
 						}
 						else
@@ -598,6 +604,9 @@ namespace Zenith
 					config.CurrentValue = value;
 
 					InvalidateConfigCache(moduleConfig.ModuleName, groupName, configName);
+
+					// Trigger the OnZenithConfigChanged event
+					Plugin._moduleServices?.InvokeZenithConfigChanged(moduleConfig.ModuleName, groupName, configName, value);
 
 					if (GlobalChangeTracking || config.Flags.HasFlag(ConfigFlag.Global) || callerModule == CoreModuleName)
 					{

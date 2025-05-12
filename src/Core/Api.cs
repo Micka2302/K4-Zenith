@@ -145,6 +145,7 @@ namespace Zenith
 			public event Action<string>? OnZenithStorageReset;
 			public event Action<bool>? OnZenithCoreUnload;
 			public event Action<CCSPlayerController, string, string>? OnZenithChatMessage;
+				public event Action<string, string, string, object>? OnZenithConfigChanged;
 
 			public IZenithEvents GetEventHandler() => this;
 
@@ -197,6 +198,9 @@ namespace Zenith
 
 			internal void InvokteZenithChatMessage(CCSPlayerController player, string message, string full)
 				=> OnZenithChatMessage?.Invoke(player, message, full);
+
+			internal void InvokeZenithConfigChanged(string moduleName, string groupName, string configName, object newValue)
+				=> OnZenithConfigChanged?.Invoke(moduleName, groupName, configName, newValue);
 
 			public string GetConnectionString()
 				=> _plugin.Database.GetConnectionString();
