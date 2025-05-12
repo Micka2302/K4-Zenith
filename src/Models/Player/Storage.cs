@@ -13,8 +13,8 @@ namespace Zenith.Models;
 
 public sealed partial class Player
 {
-	public static readonly string TABLE_PLAYER_SETTINGS = "zenith_player_settings";
-	public static readonly string TABLE_PLAYER_STORAGE = "zenith_player_storage";
+	public const string TABLE_PLAYER_SETTINGS = "zenith_player_settings";
+	public const string TABLE_PLAYER_STORAGE = "zenith_player_storage";
 
 	public Dictionary<string, Dictionary<string, object?>> Settings = [];
 	public Dictionary<string, Dictionary<string, object?>> Storage = [];
@@ -71,7 +71,7 @@ public sealed partial class Player
 		using var connection = plugin.Database.CreateConnection();
 		await connection.OpenAsync();
 
-		var columnExistsQuery = $@"
+		const string columnExistsQuery = $@"
 			SELECT COUNT(*)
 			FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_SCHEMA = DATABASE()
@@ -357,7 +357,7 @@ public sealed partial class Player
 
 	private async Task UpdateLastOnline(MySqlConnection connection)
 	{
-		var query = $@"
+		const string query = $@"
 			INSERT INTO `{TABLE_PLAYER_SETTINGS}` (`steam_id`, `name`, `last_online`)
 			VALUES (@SteamID, @Name, NOW())
 			ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();

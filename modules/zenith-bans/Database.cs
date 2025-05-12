@@ -30,7 +30,7 @@ namespace Zenith_Bans
 
 				if (isNewPlayer)
 				{
-					var insertQuery = $@"
+					const string insertQuery = $@"
                         INSERT INTO `zenith_bans_players` (`steam_id`, `name`, `last_online`, `current_server`)
                         VALUES (@SteamId, @PlayerName, NOW(), @ServerIp);
                         SELECT LAST_INSERT_ID();";
@@ -39,14 +39,14 @@ namespace Zenith_Bans
 				else
 				{
 					playerId = existingPlayerId.Value;
-					var updateQuery = $@"
+					const string updateQuery = $@"
                         UPDATE `zenith_bans_players`
                         SET `name` = @PlayerName, `last_online` = NOW(), `current_server` = @ServerIp
                         WHERE `steam_id` = @SteamId";
 					await connection.ExecuteAsync(updateQuery, new { SteamId = steamId, PlayerName = playerName, ServerIp = _serverIp });
 				}
 
-				var ipCheckQuery = $@"
+				const string ipCheckQuery = $@"
 					SELECT 1
 					FROM `zenith_bans_ip_addresses`
 					WHERE `player_id` = @PlayerId AND `ip_address` = @IpAddress";
@@ -55,7 +55,7 @@ namespace Zenith_Bans
 
 				if (!exists.HasValue)
 				{
-					var ipInsertQuery = $@"
+					const string ipInsertQuery = $@"
 						INSERT INTO `zenith_bans_ip_addresses` (`player_id`, `ip_address`)
 						VALUES (@PlayerId, @IpAddress)";
 
@@ -76,7 +76,7 @@ namespace Zenith_Bans
 				}
 				else
 				{
-					var selectPlayerQuery = $@"
+					const string selectPlayerQuery = $@"
 						WITH PlayerRanks AS (
 							SELECT
 								pr.*,
@@ -210,7 +210,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
                     UPDATE `zenith_bans_players`
                     SET `current_server` = NULL
                     WHERE `steam_id` = @SteamId;";
@@ -232,7 +232,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
                     SELECT COUNT(DISTINCT p.player_id)
                     FROM `zenith_bans_punishments` p
                     JOIN `zenith_bans_players` pl ON p.`player_id` = pl.`id`
@@ -268,7 +268,7 @@ namespace Zenith_Bans
 					return;
 				}
 
-				var rankQuery = $@"
+				const string rankQuery = $@"
 					INSERT INTO `zenith_bans_player_ranks`
 					(`player_id`, `server_ip`, `immunity`, `rank_expiry`)
 					VALUES (@PlayerId, @ServerIp, @Immunity, @Expiry)
@@ -372,7 +372,7 @@ namespace Zenith_Bans
 				adminId = await connection.ExecuteScalarAsync<int?>(playerIdQuery, new { SteamId = adminSteamId.Value });
 			}
 
-			var query = $@"
+			const string query = $@"
                 INSERT INTO `zenith_bans_punishments`
                 (`player_id`, `type`, `status`, `duration`, `created_at`, `expires_at`, `admin_id`, `reason`, `server_ip`)
                 VALUES
@@ -411,7 +411,7 @@ namespace Zenith_Bans
 				removerId = await connection.ExecuteScalarAsync<int?>(playerIdQuery, new { SteamId = removerSteamId.Value });
 			}
 
-			var query = $@"
+			const string query = $@"
                 UPDATE `zenith_bans_punishments`
                 SET `status` = CASE WHEN @RemoverId IS NULL THEN 'removed_console' ELSE 'removed' END,
                     `removed_at` = NOW(),
@@ -442,14 +442,14 @@ namespace Zenith_Bans
 
 			if (!playerId.HasValue)
 			{
-				var insertQuery = $@"
+				const string insertQuery = $@"
 					INSERT INTO `zenith_bans_players` (`steam_id`)
 					VALUES (@SteamId);
 					SELECT LAST_INSERT_ID();";
 				playerId = await connection.ExecuteScalarAsync<int>(insertQuery, new { SteamId = steamId });
 			}
 
-			var query = $@"
+			const string query = $@"
 				SELECT p.id, p.type, p.duration, p.expires_at AS ExpiresAt,
 					COALESCE(admin.name, 'Console') AS PunisherName, admin.steam_id AS AdminSteamId, p.reason
 				FROM `zenith_bans_punishments` p
@@ -525,7 +525,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
                     UPDATE `zenith_bans_punishments` p
                     JOIN `zenith_bans_players` pl ON p.`player_id` = pl.`id`
                     SET p.`status` = 'expired',
@@ -583,7 +583,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
 					SELECT ag.immunity, agp.permission
 					FROM `zenith_bans_admin_groups` ag
 					LEFT JOIN `zenith_bans_admin_group_permissions` agp ON ag.id = agp.group_id
@@ -665,7 +665,7 @@ namespace Zenith_Bans
 					string groupName = group.Key;
 					var groupInfo = group.Value;
 
-					var query = $@"
+					const string query = $@"
 						INSERT INTO `zenith_bans_admin_groups` (`name`, `immunity`)
 						VALUES (@Name, @Immunity)
 						ON DUPLICATE KEY UPDATE
@@ -677,7 +677,7 @@ namespace Zenith_Bans
 						Immunity = groupInfo.Immunity
 					});
 
-					var permissionQuery = $@"
+					const string permissionQuery = $@"
 						INSERT INTO `zenith_bans_admin_group_permissions` (`group_id`, `permission`)
 						SELECT ag.id, @Permission
 						FROM `zenith_bans_admin_groups` ag
@@ -783,7 +783,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
                     SELECT steam_id, name
                     FROM `zenith_bans_players`
                     WHERE name LIKE @Name";

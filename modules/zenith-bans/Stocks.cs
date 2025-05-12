@@ -606,7 +606,7 @@ namespace Zenith_Bans
 			using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 			await connection.OpenAsync();
 
-			var query = $@"
+			const string query = $@"
 				SELECT COALESCE(pr.immunity, 0) as immunity
 				FROM zenith_bans_players p
 				LEFT JOIN zenith_bans_player_ranks pr ON p.id = pr.player_id
@@ -1223,7 +1223,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				var query = $@"
+				const string query = $@"
 					SELECT p.steam_id, p.name
 					FROM zenith_bans_players p
 					JOIN zenith_bans_ip_addresses ip ON p.id = ip.player_id
@@ -1233,16 +1233,17 @@ namespace Zenith_Bans
 
 				if (!affectedPlayers.Any())
 				{
-					var insertPlayerQuery = $@"
+					const string insertPlayerQuery = $@"
 						INSERT INTO zenith_bans_players (steam_id, name, last_online)
 						VALUES (@SteamId, @Name, NOW());
 						SELECT LAST_INSERT_ID();";
 
+					// TODO: No random steam id needed
 					var randomSteamId = 76561100000000000 + new Random().Next(0, 999999999);
 					var playerId = await connection.ExecuteScalarAsync<int>(insertPlayerQuery,
 						new { SteamId = randomSteamId, Name = $"Unknown_{ipAddress.Replace(".", "_")}" });
 
-					var insertIpQuery = $@"
+					const string insertIpQuery = $@"
 						INSERT INTO zenith_bans_ip_addresses (player_id, ip_address)
 						VALUES (@PlayerId, @IpAddress)";
 

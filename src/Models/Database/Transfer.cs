@@ -55,7 +55,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-Ranks.storage` JSON NULL");
 			}
 
-			var migrateQuery = $@"
+			const string migrateQuery = $@"
                 INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-Ranks.storage`)
                 SELECT
                     k.`steam_id`,
@@ -96,7 +96,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-Stats.storage` JSON NULL");
 			}
 
-			var migrateQuery = $@"
+			const string migrateQuery = $@"
 				INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-Stats.storage`)
 				SELECT
 					s.`steam_id`,
@@ -177,7 +177,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-TimeStats.storage` JSON NULL");
 			}
 
-			var migrateQuery = $@"
+			const string migrateQuery = $@"
 				INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-TimeStats.storage`)
 				SELECT
 					t.`steam_id`,

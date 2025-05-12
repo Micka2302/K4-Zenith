@@ -7,6 +7,8 @@
 - fix: Fixed storage reset command transaction issues (#21)
 - fix: Fixed CustomTags connect apply issue with third-party plugins
 - chore: Updated Polish and Chinese translations
+- chore: Changed statis queries to be constant
+- remove: Removed some unused functions
 
 # 2025.04.18 - 1.0.40
 
