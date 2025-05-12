@@ -235,10 +235,10 @@ namespace Zenith
 				=> _plugin.GetModuleConfigAccessor();
 
 			public void LoadAllOnlinePlayerData()
-				=> Player.LoadAllOnlinePlayerDataWithSingleQuery(_plugin);
+				=> Task.Run(async () => await DatabaseBatchOperations.LoadAllOnlinePlayerDataWithOptimizedBatching(_plugin));
 
 			public void SaveAllOnlinePlayerData()
-				=> Task.Run(() => Player.SaveAllOnlinePlayerDataWithTransaction(_plugin));
+				=> Task.Run(async () => await DatabaseBatchOperations.SaveAllOnlinePlayerDataWithOptimizedBatching(_plugin));
 
 			public void DisposeModule(Assembly assembly)
 			{

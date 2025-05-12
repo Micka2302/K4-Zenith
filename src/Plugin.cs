@@ -94,7 +94,7 @@ namespace Zenith
 						}
 					}
 
-					Player.LoadAllOnlinePlayerDataWithSingleQuery(this);
+					Task.Run(async () => await DatabaseBatchOperations.LoadAllOnlinePlayerDataWithOptimizedBatching(this));
 				}
 
 				AddTimer(3.0f, () =>
@@ -116,7 +116,7 @@ namespace Zenith
 					if ((DateTime.Now - _lastStorageSave).TotalMinutes >= interval)
 					{
 						_lastStorageSave = DateTime.Now;
-						Task.Run(() => Player.SaveAllOnlinePlayerDataWithTransaction(this));
+						Task.Run(async () => await DatabaseBatchOperations.SaveAllOnlinePlayerDataWithOptimizedBatching(this));
 					}
 				}, TimerFlags.REPEAT);
 

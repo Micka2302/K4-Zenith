@@ -94,6 +94,14 @@ public class Plugin : BasePlugin
 			ShowTagSelectionMenu(player);
 		}, CommandUsage.CLIENT_ONLY);
 
+		_moduleServices?.RegisterModuleCommand("reloadtags", "Reload tag configurations", (player, info) =>
+		{
+			GetTagConfigs(true);
+			GetPredefinedTagConfigs(true);
+
+			_moduleServices?.PrintForPlayer(player, "Tag configurations reloaded.");
+		}, CommandUsage.CLIENT_AND_SERVER, permission: "@zenith/root");
+
 		if (hotReload)
 		{
 			_moduleServices?.LoadAllOnlinePlayerData();
@@ -379,14 +387,22 @@ public class Plugin : BasePlugin
 		}
 	}
 
-	private Dictionary<string, TagConfig> GetTagConfigs()
+	private Dictionary<string, TagConfig> GetTagConfigs(bool forceReload = false)
 	{
 		try
 		{
+			if (!forceReload && _tagConfigs != null)
+				return _tagConfigs;
+
 			string configPath = Path.Combine(ModuleDirectory, "tags.json");
 			string json = File.ReadAllText(configPath);
 			string strippedJson = StripComments(json);
-			return JsonSerializer.Deserialize<Dictionary<string, TagConfig>>(strippedJson, _jsonOptions) ?? [];
+			_tagConfigs = JsonSerializer.Deserialize<Dictionary<string, TagConfig>>(strippedJson, _jsonOptions) ?? [];
+
+			if (forceReload)
+				Logger.LogInformation("Tag configurations reloaded manually");
+
+			return _tagConfigs;
 		}
 		catch (Exception ex)
 		{
@@ -395,14 +411,25 @@ public class Plugin : BasePlugin
 		}
 	}
 
-	private Dictionary<string, PredefinedTagConfig> GetPredefinedTagConfigs()
+	private Dictionary<string, PredefinedTagConfig> GetPredefinedTagConfigs(bool forceReload = false)
 	{
 		try
 		{
+			// Return cached configs if available and not forcing reload
+			if (!forceReload && _predefinedConfigs != null)
+				return _predefinedConfigs;
+
+			// Need to reload configs
 			string configPath = Path.Combine(ModuleDirectory, "predefined_tags.json");
 			string json = File.ReadAllText(configPath);
 			string strippedJson = StripComments(json);
-			return JsonSerializer.Deserialize<Dictionary<string, PredefinedTagConfig>>(strippedJson, _jsonOptions) ?? [];
+			_predefinedConfigs = JsonSerializer.Deserialize<Dictionary<string, PredefinedTagConfig>>(strippedJson, _jsonOptions) ?? [];
+
+			// Log config reload
+			if (forceReload)
+				Logger.LogInformation("Predefined tag configurations reloaded manually");
+
+			return _predefinedConfigs;
 		}
 		catch (Exception ex)
 		{

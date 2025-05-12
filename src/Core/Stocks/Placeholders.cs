@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
@@ -36,6 +37,9 @@ namespace Zenith
 			var serverReplaced = ReplacePlaceholdersInternal(text, isPlayerPlaceholder: false, player: null);
 			return player == null || !player.IsValid ? serverReplaced : ReplacePlaceholdersInternal(serverReplaced, isPlayerPlaceholder: true, player);
 		}
+
+		[ThreadStatic]
+		private static StringBuilder? _cachedStringBuilder;
 
 		public string ReplacePlaceholdersInternal(string text, bool isPlayerPlaceholder, CCSPlayerController? player)
 		{
@@ -89,12 +93,18 @@ namespace Zenith
 			if (replacements.Count == 0)
 				return text;
 
-			string result = text;
+			if (_cachedStringBuilder == null)
+				_cachedStringBuilder = new StringBuilder(text.Length * 2);
+			else
+				_cachedStringBuilder.Clear();
+
+			StringBuilder sb = _cachedStringBuilder;
+			sb.Append(text);
 
 			foreach (var replacement in replacements.OrderByDescending(x => x.Key.Length))
-				result = result.Replace(replacement.Key, replacement.Value, StringComparison.Ordinal);
+				sb.Replace(replacement.Key, replacement.Value);
 
-			return result;
+			return sb.ToString();
 		}
 
 		private string GetCachedPlaceholderFormat(string key)
@@ -160,20 +170,39 @@ namespace Zenith
 
 		private void ListPlaceholdersForPlugin(string pluginName, CCSPlayerController? player = null)
 		{
-			PrintToConsole($"Placeholders for plugin '{pluginName}':", player);
+			if (_cachedStringBuilder == null)
+				_cachedStringBuilder = new StringBuilder(128);
+			else
+				_cachedStringBuilder.Clear();
 
-			if (_pluginPlayerPlaceholders.TryGetValue(pluginName, out var playerPlaceholders))
+			StringBuilder sb = _cachedStringBuilder;
+
+			sb.Append("Placeholders for plugin '").Append(pluginName).Append("':");
+			PrintToConsole(sb.ToString(), player);
+			sb.Clear();
+
+			if (_pluginPlayerPlaceholders.TryGetValue(pluginName, out var playerPlaceholders) && playerPlaceholders.Count > 0)
 			{
 				PrintToConsole("  Player placeholders:", player);
+
 				foreach (var placeholder in playerPlaceholders.Keys)
-					PrintToConsole($"    - {placeholder}", player);
+				{
+					sb.Append("    - ").Append(placeholder);
+					PrintToConsole(sb.ToString(), player);
+					sb.Clear();
+				}
 			}
 
-			if (_pluginServerPlaceholders.TryGetValue(pluginName, out var serverPlaceholders))
+			if (_pluginServerPlaceholders.TryGetValue(pluginName, out var serverPlaceholders) && serverPlaceholders.Count > 0)
 			{
 				PrintToConsole("  Server placeholders:", player);
+
 				foreach (var placeholder in serverPlaceholders.Keys)
-					PrintToConsole($"    - {placeholder}", player);
+				{
+					sb.Append("    - ").Append(placeholder);
+					PrintToConsole(sb.ToString(), player);
+					sb.Clear();
+				}
 			}
 		}
 
