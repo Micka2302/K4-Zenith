@@ -34,8 +34,6 @@ public class Plugin : BasePlugin
 	private IModuleServices? _moduleServices;
 
 	private readonly Dictionary<CCSPlayerController, IPlayerServices> _playerCache = [];
-	private readonly Dictionary<CCSPlayerController, CounterStrikeSharp.API.Modules.Timers.Timer> _removalTimers = [];
-
 	public KitsuneMenu Menu { get; private set; } = null!;
 	public IModuleConfigAccessor _coreAccessor = null!;
 
@@ -450,12 +448,6 @@ public class Plugin : BasePlugin
 
 			string choosenTag = zenithPlayer.GetStorage<string>("ChoosenTag") ?? "Default";
 
-			if (_removalTimers.TryGetValue(player, out var existingTimer))
-			{
-				existingTimer.Kill();
-				_removalTimers.Remove(player);
-			}
-
 			if (choosenTag == "None")
 			{
 				ApplyNullConfig(zenithPlayer);
@@ -476,24 +468,7 @@ public class Plugin : BasePlugin
 
 				if (!existsForUser)
 				{
-					float removalDelay = _coreAccessor.GetValue<float>("Config", "TagRemovalDelay");
-					if (removalDelay > 0)
-					{
-						_removalTimers[player] = AddTimer(removalDelay, () =>
-						{
-							if (!CheckTagAvailability(player, choosenTag))
-							{
-								zenithPlayer.SetStorage("ChoosenTag", "Default");
-								ApplyTagConfig(player);
-								_removalTimers.Remove(player);
-							}
-						});
-						return;
-					}
-					else
-					{
-						zenithPlayer.SetStorage("ChoosenTag", "Default");
-					}
+					zenithPlayer.SetStorage("ChoosenTag", "Default");
 				}
 				else
 					return;
@@ -651,26 +626,17 @@ public class Plugin : BasePlugin
 		}
 
 		_playerCache[player] = zenithPlayer;
-		ApplyTagConfig(player);
+
+		AddTimer(3f, () => ApplyTagConfig(player));
 	}
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
 	{
-		if (_removalTimers.TryGetValue(player, out var timer))
-		{
-			timer.Kill();
-			_removalTimers.Remove(player);
-		}
 		_playerCache.Remove(player);
 	}
 
 	public override void Unload(bool hotReload)
 	{
-		foreach (var timer in _removalTimers.Values)
-		{
-			timer.Kill();
-		}
-		_removalTimers.Clear();
 		_playerCache.Clear();
 
 		_moduleServicesCapability?.Get()?.DisposeModule(this.GetType().Assembly);
