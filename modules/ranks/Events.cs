@@ -76,7 +76,10 @@ namespace Zenith_Ranks
 					{
 						if (player.GetSetting<bool>("ShowRankChanges") && _roundPoints.TryGetValue(player.Controller, out int points))
 						{
-							string message = points > 0 ? Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-earn", points) : Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-lose", points);
+							long currentPoints = player.GetStorage<long>("Points");
+							string message = points > 0 ?
+								Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-earn", points, currentPoints) :
+								Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-lose", Math.Abs(points), currentPoints);
 							player.Print(message);
 						}
 					}

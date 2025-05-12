@@ -1,3 +1,7 @@
+# 2025.05.12 - 1.0.41
+
+- feat: Added the player's current points to the round summaries (#22)
+
 # 2025.04.18 - 1.0.40
 
 - fix: Activity settings didn't respect 0 values
