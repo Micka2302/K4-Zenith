@@ -16,6 +16,8 @@ namespace Zenith
 		public readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<CCSPlayerController, string>>> _pluginPlayerPlaceholders = new();
 		public readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<string>>> _pluginServerPlaceholders = new();
 
+		private readonly ConcurrentDictionary<string, string> _placeholderFormatCache = new();
+
 		private static readonly HashSet<char> _chatColorChars = [.. typeof(ChatColors)
 			.GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(f => f.FieldType == typeof(char))
@@ -43,70 +45,91 @@ namespace Zenith
 			if (string.IsNullOrEmpty(text))
 				return text;
 
-			return ReplacePlayerPlaceholders(player, ReplaceServerPlaceholders(text));
+			var serverReplaced = ReplacePlaceholdersInternal(text, isPlayerPlaceholder: false, player: null);
+			return player == null || !player.IsValid ? serverReplaced : ReplacePlaceholdersInternal(serverReplaced, isPlayerPlaceholder: true, player);
 		}
 
-		public string ReplaceServerPlaceholders(string text)
+		public string ReplacePlaceholdersInternal(string text, bool isPlayerPlaceholder, CCSPlayerController? player)
 		{
-			if (string.IsNullOrEmpty(text) || _pluginServerPlaceholders.IsEmpty)
+			if (string.IsNullOrEmpty(text))
 				return text;
 
-			var result = text;
-			foreach (var pluginPlaceholders in _pluginServerPlaceholders.Values)
-			{
-				if (pluginPlaceholders.IsEmpty)
-					continue;
+			if (isPlayerPlaceholder && (player == null || !player.IsValid))
+				return text;
 
-				foreach (var (key, valueFunc) in pluginPlaceholders)
+			if (!ContainsAnyPlaceholder(text))
+				return text;
+
+			Dictionary<string, string> replacements = [];
+
+			if (isPlayerPlaceholder)
+			{
+				if (!_pluginPlayerPlaceholders.IsEmpty)
 				{
-					var placeholder = $"{{{key}}}";
-					if (result.Contains(placeholder, StringComparison.Ordinal))
+					foreach (var pluginPlaceholders in _pluginPlayerPlaceholders.Values)
 					{
-						result = result.Replace(placeholder, valueFunc());
+						if (pluginPlaceholders.IsEmpty)
+							continue;
+
+						foreach (var pair in pluginPlaceholders)
+						{
+							string key = pair.Key;
+							string placeholder = GetCachedPlaceholderFormat(key);
+
+							if (text.Contains(placeholder, StringComparison.Ordinal))
+							{
+								string value = pair.Value(player!);
+								replacements[placeholder] = value;
+							}
+						}
 					}
 				}
+			}
+			else
+			{
+				if (!_pluginServerPlaceholders.IsEmpty)
+				{
+					foreach (var pluginPlaceholders in _pluginServerPlaceholders.Values)
+					{
+						if (pluginPlaceholders.IsEmpty)
+							continue;
+
+						foreach (var pair in pluginPlaceholders)
+						{
+							string key = pair.Key;
+							string placeholder = GetCachedPlaceholderFormat(key);
+
+							if (text.Contains(placeholder, StringComparison.Ordinal))
+							{
+								string value = pair.Value();
+								replacements[placeholder] = value;
+							}
+						}
+					}
+				}
+			}
+
+			if (replacements.Count == 0)
+				return text;
+
+			string result = text;
+
+			foreach (var replacement in replacements.OrderByDescending(x => x.Key.Length))
+			{
+				result = result.Replace(replacement.Key, replacement.Value, StringComparison.Ordinal);
 			}
 
 			return result;
 		}
 
-		public string ReplacePlayerPlaceholders(CCSPlayerController? player, string text)
+		private string GetCachedPlaceholderFormat(string key)
 		{
-			if (player == null || !player.IsValid || string.IsNullOrEmpty(text))
-				return text;
-
-			var result = text;
-			foreach (var pluginPlaceholders in _pluginPlayerPlaceholders.Values)
-			{
-				if (pluginPlaceholders.IsEmpty)
-					continue;
-
-				foreach (var (key, valueFunc) in pluginPlaceholders)
-				{
-					var placeholder = $"{{{key}}}";
-					if (result.Contains(placeholder, StringComparison.Ordinal))
-					{
-						result = result.Replace(placeholder, valueFunc(player));
-					}
-				}
-			}
-
-			return result;
+			return _placeholderFormatCache.GetOrAdd(key, k => $"{{{k}}}");
 		}
 
-		public static string RemoveLeadingSpaceBeforeColorCode(string input)
+		private static bool ContainsAnyPlaceholder(string text)
 		{
-			if (string.IsNullOrEmpty(input) || input.Length < 2)
-				return input;
-
-			return input[0] == ' ' && IsColorCode(input[1])
-				? input[1..]
-				: input;
-		}
-
-		private static bool IsColorCode(char c)
-		{
-			return _chatColorChars.Contains(c);
+			return text.Contains('{') && text.Contains('}');
 		}
 
 		public void RegisterZenithPlayerPlaceholder(string key, Func<CCSPlayerController, string> valueFunc)

@@ -10,6 +10,10 @@
 - chore: Changed statis queries to be constant
 - remove: Removed some unused functions
 
+--- Optimisation notes ---
+
+- optimise: Core > Placeholder usages has been improved
+
 # 2025.04.18 - 1.0.40
 
 - fix: Activity settings didn't respect 0 values

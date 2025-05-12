@@ -128,7 +128,7 @@ namespace Zenith
 				=> StorageChanged?.Invoke(this, new SettingChangedEventArgs(Controller, key, oldValue, newValue));
 
 			public string ReplacePlaceholders(string text) =>
-				_plugin.ReplacePlayerPlaceholders(_player.Controller, text);
+				_plugin.ReplacePlaceholdersInternal(text, isPlayerPlaceholder: true, Controller);
 		}
 
 		public class ModuleServices : IModuleServices

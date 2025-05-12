@@ -39,7 +39,7 @@ namespace Zenith
 
 			string message = um.ReadString("param2");
 
-			string formattedMessage = FormatMessage(player.Controller!, $" {dead}{team}{tag}{namecolor}{um.ReadString("param1")}{RemoveLeadingSpaceBeforeColorCode(Localizer.ForPlayer(player.Controller, "k4.tag.separator"))}{chatcolor}{message}");
+			string formattedMessage = FormatMessage(player.Controller!, $" {dead}{team}{tag}{namecolor}{um.ReadString("param1")}{Localizer.ForPlayer(player.Controller, "k4.tag.separator")}{chatcolor}{message}");
 
 			um.SetString("messagename", formattedMessage);
 

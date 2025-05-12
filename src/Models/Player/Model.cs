@@ -222,7 +222,7 @@ public sealed partial class Player
 		if (nameTag != null)
 			return nameTag;
 
-		return _plugin.ReplacePlayerPlaceholders(Controller!, _plugin.GetCoreConfig<string>("Modular", "PlayerChatRankFormat"));
+		return _plugin.ReplacePlaceholdersInternal(_plugin.GetCoreConfig<string>("Modular", "PlayerChatRankFormat"), isPlayerPlaceholder: true, Controller);
 	}
 
 	public void SetNameColor(string? color, ActionPriority priority)
@@ -272,7 +272,7 @@ public sealed partial class Player
 
 			if (!string.IsNullOrEmpty(clanTag))
 			{
-				Controller!.Clan = _plugin.ReplacePlayerPlaceholders(Controller, clanTag);
+				Controller!.Clan = _plugin.ReplacePlaceholdersInternal(clanTag, isPlayerPlaceholder: true, Controller);
 				Utilities.SetStateChanged(Controller, "CCSPlayerController", "m_szClan");
 			}
 		}
