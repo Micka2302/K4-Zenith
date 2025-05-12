@@ -11,7 +11,6 @@ using System.Globalization;
 namespace Zenith
 {
 	public sealed partial class Plugin : BasePlugin
-
 	{
 		private ConfigManager _configManager = null!;
 
