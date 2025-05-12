@@ -224,44 +224,51 @@ namespace Zenith
 
 		public async Task BackupDatabase(string outputPath)
 		{
-			using var connection = new MySqlConnection(Database.GetConnectionString());
-
-			// Open connection
-			await connection.OpenAsync();
-
-			// Get database name
-			var databaseName = await connection.ExecuteScalarAsync<string>("SELECT DATABASE();");
-
-			// Start writing the SQL file
-			using var writer = new StreamWriter(outputPath);
-
-			// Write the schema (table structure)
-			var tables = await connection.QueryAsync<string>("SHOW TABLES;");
-			foreach (var table in tables)
+			try
 			{
-				var createTableQuery = await connection.ExecuteScalarAsync<string>($"SHOW CREATE TABLE `{table}`;");
-				await writer.WriteLineAsync($"-- Schema for table `{table}`");
-				await writer.WriteLineAsync(createTableQuery + ";");
-				await writer.WriteLineAsync();
+				using var connection = new MySqlConnection(Database.GetConnectionString());
 
-				// Write the data for each table
-				var rows = await connection.QueryAsync($"SELECT * FROM `{table}`;");
-				foreach (var row in rows)
+				// Open connection
+				await connection.OpenAsync();
+
+				// Get database name
+				var databaseName = await connection.ExecuteScalarAsync<string>("SELECT DATABASE();");
+
+				// Start writing the SQL file
+				using var writer = new StreamWriter(outputPath);
+
+				// Write the schema (table structure)
+				var tables = await connection.QueryAsync<string>("SHOW TABLES;");
+				foreach (var table in tables)
 				{
-					var insertQuery = $"INSERT INTO `{table}` VALUES (";
-					foreach (var prop in row)
-					{
-						var value = prop.Value == null ? "NULL" : $"'{MySqlHelper.EscapeString(prop.Value.ToString())}'";
-						insertQuery += $"{value},";
-					}
-					insertQuery = insertQuery.TrimEnd(',') + ");";
-					await writer.WriteLineAsync(insertQuery);
-				}
-				await writer.WriteLineAsync();
-			}
+					var createTableQuery = await connection.ExecuteScalarAsync<string>($"SHOW CREATE TABLE `{table}`;");
+					await writer.WriteLineAsync($"-- Schema for table `{table}`");
+					await writer.WriteLineAsync(createTableQuery + ";");
+					await writer.WriteLineAsync();
 
-			// Finish up
-			await writer.WriteLineAsync($"-- Backup completed for `{databaseName}`.");
+					// Write the data for each table
+					var rows = await connection.QueryAsync($"SELECT * FROM `{table}`;");
+					foreach (var row in rows)
+					{
+						var insertQuery = $"INSERT INTO `{table}` VALUES (";
+						foreach (var prop in row)
+						{
+							var value = prop.Value == null ? "NULL" : $"'{MySqlHelper.EscapeString(prop.Value.ToString())}'";
+							insertQuery += $"{value},";
+						}
+						insertQuery = insertQuery.TrimEnd(',') + ");";
+						await writer.WriteLineAsync(insertQuery);
+					}
+					await writer.WriteLineAsync();
+				}
+
+				// Finish up
+				await writer.WriteLineAsync($"-- Backup completed for `{databaseName}`.");
+			}
+			catch (Exception ex)
+			{
+				Logger.LogError($"Error during database backup: {ex.Message}");
+			}
 		}
 	}
 }
