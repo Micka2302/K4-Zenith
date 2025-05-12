@@ -1,4 +1,3 @@
-
 using CounterStrikeSharp.API.Core;
 using ZenithAPI;
 
@@ -36,6 +35,7 @@ public sealed partial class Plugin : BasePlugin
 		_moduleServices.RegisterModuleConfig("Settings", "RankMargin", "Rank margin value for custom ranks", 0);
 		_moduleServices.RegisterModuleConfig("Settings", "ExtendedDeathMessages", "Use extended death messages including enemy name and points", true);
 		_moduleServices.RegisterModuleConfig("Settings", "VIPFlags", "VIP flags for multipliers", new List<string> { "@zenith-ranks/vip" });
+		_moduleServices.RegisterModuleConfig("Settings", "MaxPoints", "Maximum points a player can earn (0 for no limit)", 0);
 
 		// Register Points
 		_moduleServices.RegisterModuleConfig("Points", "Death", "Points for death", -5);

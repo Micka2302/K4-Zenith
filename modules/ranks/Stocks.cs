@@ -42,7 +42,9 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		long currentPoints = player.GetStorage<long>("Points");
-		long newPoints = Math.Max(0, currentPoints + points);
+		long maxPoints = GetCachedConfigValue<long>("Settings", "MaxPoints");
+
+		long newPoints = Math.Clamp(currentPoints + points, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
 
 		if (currentPoints == newPoints)
 			return;

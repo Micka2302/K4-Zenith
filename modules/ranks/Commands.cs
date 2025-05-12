@@ -145,21 +145,20 @@ public sealed partial class Plugin : BasePlugin
 		Task.Run(async () =>
 		{
 			long points = await _moduleServices.GetOfflineData<long>(steamID, "storage", "Points");
+			long maxPoints = GetCachedConfigValue<long>("Settings", "MaxPoints");
+
 			switch (operatation)
 			{
 				case '+':
-					points += amount;
+					points = Math.Clamp(points + amount, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
 					break;
 				case '-':
-					points -= amount;
+					points = Math.Max(0, points - amount);
 					break;
 				case '=':
-					points = amount;
+					points = Math.Clamp(amount, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
 					break;
 			}
-
-			if (points < 0)
-				points = 0;
 
 			string rank = DetermineRanks(points).CurrentRank?.Name ?? "k4.phrases.rank.none";
 			await _moduleServices.SetOfflineData(steamID, "storage", new Dictionary<string, object?> { { "Points", points }, { "Rank", rank } });
