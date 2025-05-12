@@ -19,6 +19,7 @@
   "commands.error.flashbang_limit": "{lightred}The target has reached the flashbang limit of {gold}{0}{lightred}.",
   "commands.error.default_limit": "{lightred}The target has reached the default grenade limit of {gold}{0}{lightred}.",
   "commands.error.healthshot_limit": "{lightred}The target has reached the healthshot limit of {gold}{0}{lightred}.",
+  "commands.error.multiple_targets": "{lightred}Multiple targets found with the given criteria. Please be more specific or use @ groups. If you try to target special names, use quotes for names such as {gold}\"t e s t\"{lightred}.",
 
   "commands.hp.success": "{gold}{0} {silver}set {gold}{1}{silver}'s health to {gold}{2}{silver}.",
   "commands.armor.success": "{gold}{0} {silver}set {gold}{1}{silver}'s armor to {gold}{2}{silver}.",

@@ -22,7 +22,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -42,7 +42,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -55,7 +55,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["freeze"], "Freezes a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -68,7 +68,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["unfreeze"], "Unfreezes a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -79,9 +79,9 @@ public sealed partial class Plugin : BasePlugin
 			}, true);
 		}, CommandUsage.CLIENT_AND_SERVER, 1, "<target>", "@zenith-commands/freeze");
 
-		_moduleServices?.RegisterModuleCommands(["noclip"], "Toggles self-noclip", (player, info) =>
+		_moduleServices?.RegisterModuleCommands(["noclip"], "Toggles noclip of player", (player, info) =>
 		{
-			ProcessTargetAction(player, player!, (target) =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -96,11 +96,11 @@ public sealed partial class Plugin : BasePlugin
 					ShowActivityToPlayers(player?.SteamID, actualMoveType == MoveType_t.MOVETYPE_NOCLIP ? "commands.noclip.enable" : "commands.noclip.disable", player?.PlayerName ?? Localizer.ForPlayer(player, "k4.general.console"));
 				}
 			}, true);
-		}, CommandUsage.CLIENT_ONLY, permission: "@zenith-commands/noclip");
+		}, CommandUsage.CLIENT_AND_SERVER, 1, "<target>", "@zenith-commands/noclip");
 
 		_moduleServices?.RegisterModuleCommands(["slay", "kill"], "Kills a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				target?.PlayerPawn.Value?.CommitSuicide(false, false);
 				ShowActivityToPlayers(player?.SteamID, "commands.slay.success", player?.PlayerName ?? Localizer.ForPlayer(player, "k4.general.console"), target!.PlayerName);
@@ -109,7 +109,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["rename"], "Renames a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -123,7 +123,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["respawn"], "Respawns a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				target?.Respawn();
 				ShowActivityToPlayers(player?.SteamID, "commands.respawn.success", player?.PlayerName ?? Localizer.ForPlayer(player, "k4.general.console"), target!.PlayerName);
@@ -132,7 +132,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["strip"], "Strips a player of all weapons", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				target?.RemoveWeapons();
 				ShowActivityToPlayers(player?.SteamID, "commands.strip.success", player?.PlayerName ?? Localizer.ForPlayer(player, "k4.general.console"), target!.PlayerName);
@@ -147,7 +147,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -159,9 +159,9 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["tp", "teleport", "goto"], "Teleports a player to another player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
-				ProcessTargetAction(player, info.GetArgTargetResult(2), destination =>
+				ProcessTargetAction(player, info, 2, destination =>
 				{
 					if (target.PlayerPawn.Value != null && destination.PlayerPawn.Value != null)
 					{
@@ -188,7 +188,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (weapon.Slot == gear_slot_t.GEAR_SLOT_GRENADES)
 				{
@@ -266,7 +266,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -279,7 +279,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["revive"], "Revives a player on the death location", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -298,7 +298,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["bury"], "Buries a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -311,7 +311,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["unbury"], "Unburies a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -330,7 +330,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -369,7 +369,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				CCSPlayerPawn? playerPawn = target.PlayerPawn.Value;
 				if (playerPawn == null)
@@ -398,7 +398,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["unblind"], "Unblinds a player", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -410,7 +410,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["god"], "Toggles god mode", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -430,7 +430,7 @@ public sealed partial class Plugin : BasePlugin
 				return;
 			}
 
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{
@@ -446,7 +446,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_moduleServices?.RegisterModuleCommands(["swap"], "Swaps player team to the opposite", (player, info) =>
 		{
-			ProcessTargetAction(player, info.GetArgTargetResult(1), target =>
+			ProcessTargetAction(player, info, 1, target =>
 			{
 				if (target.PlayerPawn.Value != null)
 				{

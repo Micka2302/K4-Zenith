@@ -21,6 +21,7 @@
   "k4.general.multiple-players-found": "{lightred}Multiple players found",
   "k4.general.no-permission-due-to-immunity": "{lightred}You don't have permission to remove this punishment due to immunity levels.",
   "k4.general.reason-required": "{lightred}You must provide a reason for this action.",
+  "k4.general.multiple_targets": "{lightred}Multiple targets found with the given criteria. Please be more specific or use @ groups. If you try to target special names, use quotes for names such as {gold}\"t e s t\"{lightred}.",
 
   "k4.chat.psay": "{grey}{0} -> {1}{white}: {2}",
   "k4.chat.announce": "{lightred}[ANNOUNCEMENT] {lightblue}{0}{default}: {1}",

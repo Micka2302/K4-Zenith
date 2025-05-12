@@ -2,7 +2,8 @@
 
 - feat: Added the player's current points to the round summaries (#22)
 - feat: Added the possibility to set the maximum rank point range (#21)
-- fix: Transaction issues when using storage reset commands (#21)
+- upgrade: Improved target selection to prefer single matches and require @ prefix for multi-targeting (#21)
+- fix: Fixed storage reset command transaction issues (#21)
 
 # 2025.04.18 - 1.0.40
 

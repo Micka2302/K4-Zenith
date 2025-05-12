@@ -3,6 +3,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Commands.Targeting;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -13,7 +14,7 @@ public sealed partial class Plugin : BasePlugin
 {
 	private void ProcessTargetAction(CCSPlayerController? caller, CCSPlayerController target, Action<CCSPlayerController> action, bool? aliveState = null)
 	{
-		if (!AdminManager.CanPlayerTarget(caller, target))
+		if (caller != target && !AdminManager.CanPlayerTarget(caller, target))
 		{
 			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.invalid_immunity", target.PlayerName));
 			return;
@@ -34,11 +35,20 @@ public sealed partial class Plugin : BasePlugin
 		action.Invoke(target);
 	}
 
-	private void ProcessTargetAction(CCSPlayerController? caller, TargetResult targetResult, Action<CCSPlayerController> action, bool? aliveState = null)
+	private void ProcessTargetAction(CCSPlayerController? caller, CommandInfo info, int targetIndex, Action<CCSPlayerController> action, bool? aliveState = null)
 	{
+		var targetString = info.GetArg(targetIndex);
+		var targetResult = info.GetArgTargetResult(targetIndex);
+
 		if (!targetResult.Any())
 		{
 			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.invalid_target"));
+			return;
+		}
+
+		if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
+		{
+			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.multiple_targets"));
 			return;
 		}
 

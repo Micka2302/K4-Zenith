@@ -182,7 +182,20 @@ namespace Zenith_Bans
 
 		private void HandleTargetSelection(CCSPlayerController controller, CommandInfo info, PunishmentType type, string durationConfigKey, string reasonConfigKey)
 		{
-			TargetResult targetResult = info.GetArgTargetResult(1);
+			var targetString = info.GetArg(1);
+			var targetResult = info.GetArgTargetResult(1);
+
+			if (!targetResult.Any())
+			{
+				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.targetnotfound"));
+				return;
+			}
+
+			if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
+			{
+				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.multiple_targets"));
+				return;
+			}
 
 			if (type == PunishmentType.Kick || type == PunishmentType.SilentKick || type == PunishmentType.Warn)
 			{
@@ -206,8 +219,20 @@ namespace Zenith_Bans
 
 		private void HandleFullCommand(CCSPlayerController controller, CommandInfo info, PunishmentType type)
 		{
-			TargetResult targetResult = info.GetArgTargetResult(1);
-			string targetString = info.GetArg(1);
+			var targetString = info.GetArg(1);
+			var targetResult = info.GetArgTargetResult(1);
+
+			if (!targetResult.Any())
+			{
+				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.targetnotfound"));
+				return;
+			}
+
+			if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
+			{
+				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.multiple_targets"));
+				return;
+			}
 
 			if (type == PunishmentType.Kick || type == PunishmentType.SilentKick || type == PunishmentType.Warn)
 			{
