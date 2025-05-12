@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 using ZenithAPI;
 
 namespace Zenith_Ranks
@@ -61,7 +62,7 @@ namespace Zenith_Ranks
 				if (resetKillStreaks)
 					_eventManager?.ResetKillStreak(player);
 
-				if (_playerSpawned.Contains(player.Controller) && player.Controller.Team > CsTeam.Spectator)
+				if (player.Controller != null && player.Controller.IsValid && player.Controller.Team > CsTeam.Spectator)
 				{
 					if (player.Controller.TeamNum == @event.Winner)
 					{
@@ -74,26 +75,40 @@ namespace Zenith_Ranks
 
 					if (pointSummary)
 					{
-						if (player.GetSetting<bool>("ShowRankChanges") && _roundPoints.TryGetValue(player.Controller, out int points))
+						if (player.GetSetting<bool>("ShowRankChanges"))
 						{
-							long currentPoints = player.GetStorage<long>("Points");
-							string message = points > 0 ?
-								Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-earn", points, currentPoints) :
-								Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-lose", Math.Abs(points), currentPoints);
-							player.Print(message);
+							// Try to get the player's data from cache
+							if (PlayerCacheManager.TryGetPlayer<PlayerExtendedData>(_moduleName, player.SteamID, out var extendedData)
+								&& extendedData.RoundPoints != 0)
+							{
+								long currentPoints = player.GetStorage<long>("Points");
+								int roundPoints = extendedData.RoundPoints;
+								string message = roundPoints > 0 ?
+									Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-earn", roundPoints, currentPoints) :
+									Localizer.ForPlayer(player.Controller, "k4.phrases.round-summary-lose", Math.Abs(roundPoints), currentPoints);
+								player.Print(message);
+							}
 						}
 					}
 				}
 			}
 
-			_roundPoints.Clear();
+			// Clear round points for all players
+			foreach (var steamId in PlayerCacheManager.GetAllCachedPlayers(_moduleName))
+			{
+				if (PlayerCacheManager.TryGetPlayer<PlayerExtendedData>(_moduleName, steamId, out var extendedData))
+				{
+					extendedData.RoundPoints = 0;
+					PlayerCacheManager.SetPlayer(_moduleName, steamId, extendedData);
+				}
+			}
 			return HookResult.Continue;
 		}
 
 		private HookResult OnRoundPrestart(EventRoundPrestart @event, GameEventInfo info)
 		{
 			_isGameEnd = false;
-			_playerSpawned.Clear();
+			// Player status is now tracked through the centralized cache
 			return HookResult.Continue;
 		}
 
@@ -215,8 +230,8 @@ namespace Zenith_Ranks
 				return _lastProcessResult;
 			}
 
-			_lastProcessResult = GetCachedConfigValue<int>("Settings", "MinPlayers") <= _playerCache.Count &&
-								(GetCachedConfigValue<bool>("Settings", "WarmupPoints") || GameRules?.WarmupPeriod != true);
+			_lastProcessResult = GetCachedConfigValue<int>("Settings", "MinPlayers") <= Utilities.GetPlayers().Count(p => p.IsValid && !p.IsBot && !p.IsHLTV) &&
+							(GetCachedConfigValue<bool>("Settings", "WarmupPoints") || GameRules?.WarmupPeriod != true);
 			_lastCheckTime = currentTime;
 
 			return _lastProcessResult;
@@ -227,7 +242,8 @@ namespace Zenith_Ranks
 			if (player == null)
 				return;
 
-			if (_playerCache.TryGetValue(player, out var playerServices))
+			var playerServices = _playerServicesCapability.GetZenithPlayer(player);
+			if (playerServices != null)
 			{
 				int points = _configAccessor.GetValue<int>("Points", pointsKey);
 				ModifyPlayerPoints(playerServices, points, eventKey);
@@ -281,13 +297,13 @@ namespace Zenith_Ranks
 			if (_configAccessor.GetValue<bool>("Settings", "EnableRequirementMessages"))
 			{
 				int requiredPlayers = _configAccessor.GetValue<int>("Settings", "MinPlayers");
-				if (requiredPlayers > Utilities.GetPlayers().Count(p => p.IsValid && !p.IsBot && !p.IsHLTV) && !_playerSpawned.Contains(player))
+				if (requiredPlayers > Utilities.GetPlayers().Count(p => p.IsValid && !p.IsBot && !p.IsHLTV))
 				{
 					_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "k4.phrases.points_disabled", requiredPlayers));
 				}
 			}
 
-			_playerSpawned.Add(player);
+			// Player is already tracked in the centralized cache
 		}
 
 		public class EventManager
@@ -323,9 +339,9 @@ namespace Zenith_Ranks
 			{
 				if (deathEvent?.Userid == null) return;
 
-				var victim = deathEvent.Userid != null ? _plugin._playerCache.TryGetValue(deathEvent.Userid, out var victimPlayer) ? victimPlayer : null : null;
-				var attacker = deathEvent.Attacker != null ? _plugin._playerCache.TryGetValue(deathEvent.Attacker, out var attackerPlayer) ? attackerPlayer : null : null;
-				var assister = deathEvent.Assister != null ? _plugin._playerCache.TryGetValue(deathEvent.Assister, out var assisterPlayer) ? assisterPlayer : null : null;
+				var victim = deathEvent.Userid != null ? _plugin._playerServicesCapability.GetZenithPlayer(deathEvent.Userid) : null;
+				var attacker = deathEvent.Attacker != null ? _plugin._playerServicesCapability.GetZenithPlayer(deathEvent.Attacker) : null;
+				var assister = deathEvent.Assister != null ? _plugin._playerServicesCapability.GetZenithPlayer(deathEvent.Assister) : null;
 
 				if (victim != null)
 				{
@@ -466,9 +482,10 @@ namespace Zenith_Ranks
 
 			public void ResetKillStreak(IPlayerServices player)
 			{
-				if (_plugin._playerRankCache.TryGetValue(player.SteamID, out var playerData))
+				if (PlayerCacheManager.TryGetPlayer<PlayerRankInfo>(_plugin._moduleName, player.SteamID, out var playerData))
 				{
 					playerData.KillStreak = new KillStreakInfo();
+					PlayerCacheManager.SetPlayer(_plugin._moduleName, player.SteamID, playerData);
 				}
 			}
 

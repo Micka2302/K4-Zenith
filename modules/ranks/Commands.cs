@@ -17,7 +17,8 @@ public sealed partial class Plugin : BasePlugin
 	public void OnRanksCommand(CCSPlayerController? player, CommandInfo info)
 	{
 		if (player == null) return;
-		if (!_playerCache.TryGetValue(player!, out var playerServices))
+		var playerServices = _playerServicesCapability.GetZenithPlayer(player);
+		if (playerServices == null)
 		{
 			info.ReplyToCommand($" {Localizer.ForPlayer(player, "k4.general.prefix")} {Localizer.ForPlayer(player, "k4.general.loading")}");
 			return;
@@ -37,7 +38,7 @@ public sealed partial class Plugin : BasePlugin
 		List<MenuItem> items = [];
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = FormatPoints(rank.Point);
+			string formattedPoints = ZenithHelper.FormatNumber(rank.Point);
 			string rankInfo = $"<font color='{rank.HexColor}'>{rank.Name}</font>: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			items.Add(new MenuItem(MenuItemType.Button, [new MenuValue(rankInfo)]));
 		}
@@ -53,7 +54,7 @@ public sealed partial class Plugin : BasePlugin
 		ChatMenu menu = new ChatMenu(Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"));
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = FormatPoints(rank.Point);
+			string formattedPoints = ZenithHelper.FormatNumber(rank.Point);
 			string rankInfo = $"{rank.ChatColor}{rank.Name}{ChatColors.Default}: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			menu.AddMenuOption(rankInfo, (p, o) => { });
 		}
@@ -62,7 +63,8 @@ public sealed partial class Plugin : BasePlugin
 
 	public void OnRankCommand(CCSPlayerController? player, CommandInfo info)
 	{
-		if (!_playerCache.TryGetValue(player!, out var playerServices))
+		var playerServices = _playerServicesCapability.GetZenithPlayer(player);
+		if (playerServices == null)
 		{
 			info.ReplyToCommand($" {Localizer.ForPlayer(player, "k4.general.prefix")} {Localizer.ForPlayer(player, "k4.general.loading")}");
 			return;
@@ -120,7 +122,8 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var target in targets)
 		{
-			if (_playerCache.TryGetValue(target, out var zenithPlayer))
+			var zenithPlayer = _playerServicesCapability.GetZenithPlayer(target);
+			if (zenithPlayer != null)
 			{
 				var (message, logMessage) = action(zenithPlayer, amount);
 				if (player != null)
@@ -280,7 +283,7 @@ public sealed partial class Plugin : BasePlugin
 			var onlinePlayer = Utilities.GetPlayerFromSteamId(steamId);
 			if (onlinePlayer != null)
 			{
-				var zenithPlayer = GetZenithPlayer(onlinePlayer);
+				var zenithPlayer = _playerServicesCapability.GetZenithPlayer(onlinePlayer);
 				if (zenithPlayer != null)
 				{
 					long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");

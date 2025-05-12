@@ -8,19 +8,16 @@ namespace Zenith_Ranks;
 
 public sealed partial class Plugin : BasePlugin
 {
-	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
-	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
-
 	public IEnumerable<IPlayerServices> GetValidPlayers()
 	{
-		foreach (var player in Utilities.GetPlayers())
+		var players = Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV);
+
+		foreach (var player in players)
 		{
-			if (player != null)
+			var zenithPlayer = _playerServicesCapability.GetZenithPlayer(player);
+			if (zenithPlayer != null)
 			{
-				if (_playerCache.TryGetValue(player, out var zenithPlayer))
-				{
-					yield return zenithPlayer;
-				}
+				yield return zenithPlayer;
 			}
 		}
 	}
@@ -49,26 +46,30 @@ public sealed partial class Plugin : BasePlugin
 		if (currentPoints == newPoints)
 			return;
 
-		player.SetStorage("Points", newPoints);
-		playerData.LastUpdate = DateTime.Now;
+		// Update storage and cache in one call
+		SetPlayerPointsWithCache(player, newPoints);
 
 		if (scoreboardSync && player.Controller.Score != (int)newPoints)
 		{
 			player.Controller.Score = (int)newPoints;
 		}
 
-		UpdatePlayerRank(player, playerData, newPoints);
-
 		if (showSummaries || !player.GetSetting<bool>("ShowRankChanges"))
 		{
-			_roundPoints[player.Controller] = _roundPoints.TryGetValue(player.Controller, out int existingPoints)
-				? existingPoints + points
-				: points;
+			// Get the player's extended data to store round points
+			var extendedData = PlayerCacheManager.GetOrAddPlayer(_moduleName, player.SteamID, _ => new PlayerExtendedData());
+
+			// Update round points for the player
+			extendedData.RoundPoints += points;
+
+			// Save back to the cache
+			PlayerCacheManager.SetPlayer(_moduleName, player.SteamID, extendedData);
 		}
 		else
 		{
 			string message = Localizer.ForPlayer(player.Controller, points >= 0 ? "k4.phrases.gain" : "k4.phrases.loss",
 				$"{newPoints:N0}", Math.Abs(points), extraInfo ?? Localizer.ForPlayer(player.Controller, eventKey));
+
 			Server.NextFrame(() => player.Print(message));
 		}
 	}
@@ -111,63 +112,81 @@ public sealed partial class Plugin : BasePlugin
 
 	private PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
 	{
-		if (_playerRankCache.TryGetValue(player.SteamID, out var rankInfo) && (DateTime.Now - rankInfo.LastUpdate) < _playerCacheExpiration)
+		return PlayerCacheManager.GetOrAddPlayer(_moduleName, player.SteamID, (steamId) =>
 		{
-			return rankInfo;
-		}
+			var currentPoints = player.GetStorage<long>("Points");
+			var (determinedRank, nextRank) = DetermineRanks(currentPoints);
 
-		var currentPoints = player.GetStorage<long>("Points");
-
-		var (determinedRank, nextRank) = DetermineRanks(currentPoints);
-
-		rankInfo = new PlayerRankInfo
-		{
-			Rank = determinedRank,
-			NextRank = nextRank,
-			LastUpdate = DateTime.Now
-		};
-
-		_playerRankCache[player.SteamID] = rankInfo;
-		return rankInfo;
+			return new PlayerRankInfo
+			{
+				Rank = determinedRank,
+				NextRank = nextRank,
+				LastUpdate = DateTime.Now,
+				KillStreak = new KillStreakInfo()
+			};
+		});
 	}
 
 	private (Rank? CurrentRank, Rank? NextRank) DetermineRanks(long points)
 	{
-		Rank? currentRank = null;
-		Rank? nextRank = null;
+		if (Ranks.Count == 0)
+			return (null, null);
 
-		foreach (var rank in Ranks)
+		int low = 0;
+		int high = Ranks.Count - 1;
+		int bestRankIndex = -1;
+
+		// Binary search to find the highest rank that the player qualifies for
+		while (low <= high)
 		{
-			if (points >= rank.Point)
+			int mid = low + (high - low) / 2;
+
+			if (Ranks[mid].Point <= points)
 			{
-				currentRank = rank;
+				bestRankIndex = mid;
+				low = mid + 1;  // Look for a higher rank
 			}
 			else
 			{
-				nextRank = rank;
-				break;
+				high = mid - 1;  // Look for a lower rank
 			}
 		}
+
+		// Determine current and next rank
+		Rank? currentRank = bestRankIndex >= 0 ? Ranks[bestRankIndex] : null;
+		Rank? nextRank = bestRankIndex + 1 < Ranks.Count ? Ranks[bestRankIndex + 1] : null;
 
 		return (currentRank, nextRank);
 	}
 
 	public int CalculateDynamicPoints(IPlayerServices attacker, IPlayerServices victim, int basePoints)
 	{
-		if (!_configAccessor.GetValue<bool>("Settings", "DynamicDeathPoints"))
+		// Fast path return if basePoints is 0
+		if (basePoints == 0) return 0;
+
+		// Check if dynamic points are enabled directly from config cache
+		bool dynamicPointsEnabled = GetCachedConfigValue<bool>("Settings", "DynamicDeathPoints");
+
+		// Return base points if dynamic points are disabled
+		if (!dynamicPointsEnabled)
 			return basePoints;
 
+		// Get points from players
 		long attackerPoints = attacker.GetStorage<long>("Points");
 		long victimPoints = victim.GetStorage<long>("Points");
 
+		// Another fast path for simple cases
 		if (attackerPoints <= 0 || victimPoints <= 0)
 			return basePoints;
 
-		double minMultiplier = _configAccessor.GetValue<double>("Settings", "DynamicDeathPointsMinMultiplier");
-		double maxMultiplier = _configAccessor.GetValue<double>("Settings", "DynamicDeathPointsMaxMultiplier");
+		// Calculate the result directly - no need to cache since player points change frequently
+		double minMultiplier = GetCachedConfigValue<double>("Settings", "DynamicDeathPointsMinMultiplier");
+		double maxMultiplier = GetCachedConfigValue<double>("Settings", "DynamicDeathPointsMaxMultiplier");
 
 		double pointsRatio = Math.Clamp(victimPoints / (double)attackerPoints, minMultiplier, maxMultiplier);
-		return (int)Math.Round(pointsRatio * basePoints);
+		int result = (int)Math.Round(pointsRatio * basePoints);
+
+		return result;
 	}
 
 	private void UpdateScoreboards()
@@ -186,24 +205,6 @@ public sealed partial class Plugin : BasePlugin
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, currentPoints, rankMax, rankBase, rankMargin);
-		}
-	}
-
-	private static string FormatPoints(int points)
-	{
-		if (points >= 1000000)
-		{
-			double millions = points / 1000000.0;
-			return $"{millions:F1}M";
-		}
-		else if (points >= 1000)
-		{
-			double thousands = points / 1000.0;
-			return $"{thousands:F1}k";
-		}
-		else
-		{
-			return points.ToString();
 		}
 	}
 }
