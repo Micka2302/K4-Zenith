@@ -229,6 +229,7 @@ namespace Zenith
 				info.ReplyToCommand($" {Localizer.ForPlayer(controller, "k4.general.prefix")} {Localizer.ForPlayer(controller, "k4.command.help", info.ArgByIndex(0), helpText)}");
 				return true;
 			}
+
 			return false;
 		}
 	}

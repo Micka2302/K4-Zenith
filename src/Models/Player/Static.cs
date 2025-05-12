@@ -7,20 +7,6 @@ public sealed partial class Player
 {
 	public static ConcurrentDictionary<ulong, Player> List { get; } = new ConcurrentDictionary<ulong, Player>();
 
-	public static Player? Find(ulong steamID)
-	{
-		if (List.TryGetValue(steamID, out var player))
-		{
-			if (!player.IsValid)
-			{
-				player.Dispose();
-				return null;
-			}
-			return player;
-		}
-		return null;
-	}
-
 	public static Player? Find(CCSPlayerController? controller)
 	{
 		if (controller == null) return null;

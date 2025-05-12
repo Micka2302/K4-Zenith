@@ -202,9 +202,6 @@ public sealed partial class Player
 		Utilities.SetStateChanged(Controller, "CCSPlayerController", "m_szClan");
 	}
 
-	public string GetClanTag()
-		=> _clanTag?.Item1 ?? Controller?.Clan ?? string.Empty;
-
 	public void SetNameTag(string? tag, ActionPriority priority)
 	{
 		if (tag == null)
