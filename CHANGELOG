@@ -4,6 +4,7 @@
 - feat: Added the possibility to set the maximum rank point range (#21)
 - upgrade: Improved target selection to prefer single matches and require @ prefix for multi-targeting (#21)
 - upgrade: Enhanced the database backup process with proper error handling
+- upgrade: New ZenithAPI with built in centralized config and player cache management
 - fix: Fixed storage reset command transaction issues (#21)
 - fix: Fixed CustomTags connect apply issue with third-party plugins
 - chore: Updated Polish and Chinese translations
