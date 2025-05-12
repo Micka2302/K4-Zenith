@@ -15,9 +15,7 @@ namespace ZenithAPI
         /// <param name="player">The player controller</param>
         /// <param name="capability">The player capability for Zenith services</param>
         /// <returns>The player services, or null if not available</returns>
-        public static IPlayerServices? GetZenithPlayer(
-            CCSPlayerController? player,
-            PlayerCapability<IPlayerServices> capability)
+        public static IPlayerServices? GetZenithPlayer(CCSPlayerController? player, PlayerCapability<IPlayerServices> capability)
         {
             if (player == null) return null;
             try { return capability.Get(player); }
@@ -41,10 +39,8 @@ namespace ZenithAPI
 
             public bool TryGetValue(ulong steamId, out TValue value)
             {
-                // Initialize default value (will be overwritten if found)
                 value = default!;
 
-                // Try to get the value if it exists and is not expired
                 if (_cache.TryGetValue(steamId, out var cachedValue) &&
                     _lastUpdateTimes.TryGetValue(steamId, out var lastUpdate) &&
                     DateTime.Now - lastUpdate < _expiration)

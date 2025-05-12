@@ -80,11 +80,7 @@ namespace ZenithAPI
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
 
             // Use the config cache manager to get or add the value
-            return ConfigCacheManager.GetOrAddValue<T>(
-                moduleName!,
-                section,
-                key,
-                () => configAccessor.GetValue<T>(section, key));
+            return ConfigCacheManager.GetOrAddValue(moduleName!, section, key, () => configAccessor.GetValue<T>(section, key));
         }
 
         /// <summary>

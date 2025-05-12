@@ -18,10 +18,10 @@ namespace ZenithAPI
         {
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
             PlayerCacheManager.RegisterModule(moduleName!, expirationTime);
-            
+
             // Set up automatic cleanup on player disconnect
             var events = moduleServices.GetEventHandler();
-            events.OnZenithPlayerUnloaded += (player) => 
+            events.OnZenithPlayerUnloaded += (player) =>
             {
                 if (player != null)
                 {
@@ -29,7 +29,7 @@ namespace ZenithAPI
                 }
             };
         }
-        
+
         /// <summary>
         /// Gets a player from the cache or adds it if not already cached
         /// </summary>
@@ -43,17 +43,17 @@ namespace ZenithAPI
             CCSPlayerController player,
             Func<CCSPlayerController, T> valueFactory) where T : class
         {
-            if (player == null) 
+            if (player == null)
                 return null!;
-                
+
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             return PlayerCacheManager.GetOrAddPlayer(
                 moduleName!,
                 player.SteamID,
                 steamId => valueFactory(player));
         }
-        
+
         /// <summary>
         /// Try to get a player from the cache
         /// </summary>
@@ -68,15 +68,15 @@ namespace ZenithAPI
             out T value) where T : class
         {
             value = default!;
-            
+
             if (player == null)
                 return false;
-                
+
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             return PlayerCacheManager.TryGetPlayer(moduleName!, player.SteamID, out value);
         }
-        
+
         /// <summary>
         /// Set a player in the cache
         /// </summary>
@@ -91,12 +91,12 @@ namespace ZenithAPI
         {
             if (player == null)
                 return;
-                
+
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             PlayerCacheManager.SetPlayer(moduleName!, player.SteamID, value);
         }
-        
+
         /// <summary>
         /// Remove a player from the cache
         /// </summary>
@@ -108,12 +108,12 @@ namespace ZenithAPI
         {
             if (player == null)
                 return;
-                
+
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             PlayerCacheManager.RemovePlayer(moduleName!, player.SteamID);
         }
-        
+
         /// <summary>
         /// Cleanup all cached players for the module
         /// </summary>
@@ -121,10 +121,10 @@ namespace ZenithAPI
         public static void CleanupPlayerCache(this IModuleServices moduleServices)
         {
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             PlayerCacheManager.CleanupModule(moduleName!);
         }
-        
+
         /// <summary>
         /// Cleanup expired players from the cache
         /// </summary>
@@ -132,10 +132,10 @@ namespace ZenithAPI
         public static void CleanupExpiredPlayers(this IModuleServices moduleServices)
         {
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             PlayerCacheManager.CleanupExpiredPlayers(moduleName!);
         }
-        
+
         /// <summary>
         /// Get a specific type of player cache manager for a module
         /// </summary>
@@ -145,10 +145,8 @@ namespace ZenithAPI
         public static TypedPlayerCache<T> GetTypedPlayerCache<T>(this IModuleServices moduleServices) where T : class
         {
             var moduleName = Assembly.GetCallingAssembly().GetName().Name;
-            
+
             return new TypedPlayerCache<T>(moduleName!);
         }
     }
-    
-    // TypedPlayerCache has been moved to TypedPlayerCache.cs
 }

@@ -43,9 +43,8 @@ namespace ZenithAPI
 				var timer = new Timer(CleanupExpiredEntries, null, cleanupInterval, cleanupInterval);
 			}
 
-			// TODO: Subscribe to config changes when the API event is implemented
-			// var events = moduleServices.GetEventHandler();
-			// events.OnZenithConfigChanged += OnZenithConfigChanged;
+			var events = moduleServices.GetEventHandler();
+			events.OnZenithConfigChanged += OnZenithConfigChanged;
 		}
 
 		/// <summary>
