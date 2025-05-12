@@ -91,7 +91,7 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
-	private List<string> GetItems(CCSPlayerController player, gear_slot_t? slot = null, string? className = null)
+	private static List<string> GetItems(CCSPlayerController player, gear_slot_t? slot = null, string? className = null)
 	{
 		List<string> items = new();
 		if (player.PlayerPawn.Value?.WeaponServices is null)

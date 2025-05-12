@@ -199,7 +199,7 @@ public class StatsTopHandler
 			using var connection = new MySqlConnection(connectionString);
 			await connection.OpenAsync();
 
-			var columnName = "K4-Zenith-Stats.storage";
+			const string columnName = "K4-Zenith-Stats.storage";
 			var query = $@"
 				SELECT p.name,
 					CAST(JSON_EXTRACT(p.`{columnName}`, '$.{category}') AS UNSIGNED) as Value

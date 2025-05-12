@@ -106,8 +106,8 @@ public class RankTopHandler
 			using var connection = new MySqlConnection(connectionString);
 			await connection.OpenAsync();
 
-			var columnName = "K4-Zenith-Ranks.storage";
-			var query = $@"
+			const string columnName = "K4-Zenith-Ranks.storage";
+			const string query = $@"
 				SELECT p.name,
 					   CAST(JSON_EXTRACT(p.`{columnName}`, '$.Points') AS UNSIGNED) as Points
 				FROM zenith_player_storage p

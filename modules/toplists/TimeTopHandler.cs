@@ -172,7 +172,7 @@ public class TimeTopHandler
 			using var connection = new MySqlConnection(connectionString);
 			await connection.OpenAsync();
 
-			var columnName = "K4-Zenith-TimeStats.storage";
+			const string columnName = "K4-Zenith-TimeStats.storage";
 			var query = $@"
 				SELECT p.name,
 					CAST(JSON_EXTRACT(p.`{columnName}`, '$.{category}') AS DECIMAL(10,2)) as Time
