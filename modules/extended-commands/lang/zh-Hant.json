@@ -19,6 +19,7 @@
   "commands.error.flashbang_limit": "{lightred}目標已達閃光彈上限 {gold}{0}{lightred}。",
   "commands.error.default_limit": "{lightred}目標已達預設手榴彈上限 {gold}{0}{lightred}。",
   "commands.error.healthshot_limit": "{lightred}目標已達回血針上限 {gold}{0}{lightred}。",
+  "commands.error.multiple_targets": "{lightred}使用給定條件找到多個目標。請更具體或使用 @ 群組。如果您嘗試針對特殊名稱，請對名稱使用引號，例如 {gold}\"t e s t\"{lightred}。",
 
   "commands.hp.success": "{gold}{0} {silver}將 {gold}{1}{silver} 的生命值設為 {gold}{2}{silver}。",
   "commands.armor.success": "{gold}{0} {silver}將 {gold}{1}{silver} 的護甲值設為 {gold}{2}{silver}。",

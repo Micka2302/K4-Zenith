@@ -4,6 +4,7 @@
 - feat: Added the possibility to set the maximum rank point range (#21)
 - upgrade: Improved target selection to prefer single matches and require @ prefix for multi-targeting (#21)
 - fix: Fixed storage reset command transaction issues (#21)
+- chore: Updated Polish and Chinese translations
 
 # 2025.04.18 - 1.0.40
 
