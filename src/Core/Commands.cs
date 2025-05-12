@@ -35,7 +35,7 @@ namespace Zenith
 
 			RegisterZenithCommand("css_zmigrate", "Migrate other supported plugins' sql data to Zenith", (CCSPlayerController? player, CommandInfo command) =>
 			{
-				Task.Run(async () => await MigrateOldData());
+				Task.Run(async () => await TransferOldData());
 			}, CommandUsage.SERVER_ONLY, permission: "@zenith/root");
 		}
 	}

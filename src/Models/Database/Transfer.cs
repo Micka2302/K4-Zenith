@@ -9,10 +9,8 @@ namespace Zenith
 {
 	public sealed partial class Plugin : BasePlugin
 	{
-		private async Task MigrateOldData()
+		private async Task TransferOldData()
 		{
-			Logger.LogInformation("Starting migratable data checks...");
-
 			try
 			{
 				using var connection = Database.CreateConnection();
