@@ -75,7 +75,7 @@ public class TopListsPlugin : BasePlugin
 			ModuleServices.RegisterModuleConfig("Commands", "TimeTopCommands", "Commands to use the time toplists", new List<string> { "timetop", "ttop" });
 			ModuleServices.RegisterModuleConfig("Commands", "StatsTopCommands", "Commands to use the statistic toplists", new List<string> { "stattop", "statstop", "stop" });
 
-			ModuleServices.RegisterModuleConfig("Settings", "ClanTagMax", "The maximum of the top placement to add clantag addition", 20);
+			ModuleServices.RegisterModuleConfig("Settings", "ClanTagMax", "The maximum of the top placement to add clantag addition (0 to unlimited)", 20);
 
 			RankTopHandler = new RankTopHandler(this);
 			TimeTopHandler = new TimeTopHandler(this);
@@ -101,7 +101,8 @@ public class TopListsPlugin : BasePlugin
 
 				var steamId = p.SteamID;
 
-				if (_topPlacementCache.TryGetValue(steamId, out var cachedData) && CoreAccessor!.GetValue<int>("Settings", "ClanTagMax") <= cachedData.Item1)
+				int ClanTagMax = CoreAccessor!.GetValue<int>("Settings", "ClanTagMax");
+				if (_topPlacementCache.TryGetValue(steamId, out var cachedData) && (ClanTagMax <= 0 || ClanTagMax >= cachedData.Item1))
 				{
 					return Localizer["top.clantag", cachedData.Item1];
 				}
