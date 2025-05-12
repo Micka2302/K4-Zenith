@@ -7,6 +7,7 @@ using MySqlConnector;
 using System.Reflection;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
+using System.Data;
 
 namespace Zenith.Models;
 
@@ -520,10 +521,12 @@ public sealed partial class Player
 
 		using var connection = plugin.Database.CreateConnection();
 		await connection.OpenAsync();
-		using var transaction = await connection.BeginTransactionAsync();
+		MySqlTransaction? transaction = null;
 
 		try
 		{
+			transaction = await connection.BeginTransactionAsync();
+
 			List<string> modulesToReset = realTarget == "all"
 				? [.. moduleDefaultStorage.Keys]
 				: moduleDefaultStorage.ContainsKey(realTarget) ? [realTarget] : [];
@@ -562,6 +565,7 @@ public sealed partial class Player
 			}
 
 			await transaction.CommitAsync();
+			transaction = null;
 
 			Server.NextWorldUpdate(() =>
 			{
@@ -581,7 +585,18 @@ public sealed partial class Player
 		}
 		catch (Exception ex)
 		{
-			await transaction.RollbackAsync();
+			try
+			{
+				if (transaction != null && connection.State == ConnectionState.Open)
+				{
+					await transaction.RollbackAsync();
+				}
+			}
+			catch (Exception rollbackEx)
+			{
+				plugin.Logger.LogError("Error in transaction rollback: {Message}", rollbackEx.Message);
+			}
+
 			plugin.Logger.LogError("Error in ResetModuleStorageAll: {Message}", ex.Message);
 			Server.NextWorldUpdate(() => caller?.Print($"An error occurred while resetting {realTarget} storage."));
 		}
