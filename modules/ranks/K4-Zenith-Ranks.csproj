@@ -10,6 +10,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>Zenith_Ranks</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="*">
@@ -22,20 +23,17 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="ZenithAPI">
-      <HintPath>$(ProjectDir)\..\..\src-api\bin\K4-ZenithAPI\K4-ZenithAPI.dll</HintPath>
+      <HintPath>$(ProjectDir)\..\..\src-api\bin\Release\net8.0\K4-ZenithAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="KitsuneMenu">
-      <HintPath>/Users/sples/Projects/CS2_Random/Menu-main/src/bin/KitsuneMenu/shared/KitsuneMenu/KitsuneMenu.dll</HintPath>
+      <HintPath>C:\Developments\KitsuneMenu\bin\Debug\net8.0\KitsuneMenu.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Update="$(ProjectDir)\lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <!-- All files are now included in the build -->
-  <ItemGroup>
   </ItemGroup>
 </Project>

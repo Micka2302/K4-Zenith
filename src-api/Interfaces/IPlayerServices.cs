@@ -143,13 +143,5 @@ namespace ZenithAPI
 		/// Resets the storage items for a specific module to their default values.
 		/// </summary>
 		void ResetModuleStorage();
-
-		/// <summary>
-		/// Replaces the placeholders that are registered by modules or the Zenith core such as {name}, {ip}, etc
-		/// </summary>
-		/// <param name="player"></param>
-		/// <param name="text"></param>
-		/// <returns>Returns the replaced text</returns>
-		string ReplacePlaceholders(string text);
 	}
 }

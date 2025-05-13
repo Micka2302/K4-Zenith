@@ -8,20 +8,6 @@ namespace Zenith_Ranks;
 
 public sealed partial class Plugin : BasePlugin
 {
-	public IEnumerable<IPlayerServices> GetValidPlayers()
-	{
-		var players = Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && !p.IsHLTV);
-
-		foreach (var player in players)
-		{
-			var zenithPlayer = _playerServicesCapability.GetZenithPlayer(player);
-			if (zenithPlayer != null)
-			{
-				yield return zenithPlayer;
-			}
-		}
-	}
-
 	public void ModifyPlayerPoints(IPlayerServices player, int points, string eventKey, string? extraInfo = null)
 	{
 		if (points == 0) return;
@@ -110,7 +96,7 @@ public sealed partial class Plugin : BasePlugin
 		return rank1.Point.CompareTo(rank2.Point);
 	}
 
-	private PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
+	internal PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
 	{
 		return PlayerCacheManager.GetOrAddPlayer(_moduleName, player.SteamID, (steamId) =>
 		{
@@ -127,7 +113,7 @@ public sealed partial class Plugin : BasePlugin
 		});
 	}
 
-	private (Rank? CurrentRank, Rank? NextRank) DetermineRanks(long points)
+	internal (Rank? CurrentRank, Rank? NextRank) DetermineRanks(long points)
 	{
 		if (Ranks.Count == 0)
 			return (null, null);
@@ -199,7 +185,7 @@ public sealed partial class Plugin : BasePlugin
 		int rankBase = GetCachedConfigValue<int>("Settings", "RankBase");
 		int rankMargin = GetCachedConfigValue<int>("Settings", "RankMargin");
 
-		foreach (var player in GetValidPlayers())
+		foreach (var player in ZenithPlayer.GetValidPlayers())
 		{
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 

@@ -9,6 +9,7 @@
 - fix: Fixed CustomTags connect apply issue with third-party plugins
 - chore: Updated Polish and Chinese translations
 - chore: Changed statis queries to be constant
+- chore: Balanced Rank module settings
 - remove: Removed some unused functions
 
 --- Optimisation notes ---
@@ -19,6 +20,7 @@
 - optimise: Core > Added batch operations to database
 - optimise: Core > Reworked config handler
 - optimise: Core > Reworked CallerIdentifier class
+- optimise: Ranks > Reworked the full module
 
 # 2025.04.18 - 1.0.40
 

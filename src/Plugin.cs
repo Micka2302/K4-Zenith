@@ -2,15 +2,20 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Timers;
+using Menu;
 using Microsoft.Extensions.Logging;
 using Zenith.Models;
+using ZenithAPI;
 
 namespace Zenith
 {
 	[MinimumApiVersion(260)]
 	public sealed partial class Plugin : BasePlugin
 	{
-		public Menu.KitsuneMenu Menu { get; private set; } = null!;
+		public KitsuneMenu Menu { get; private set; } = null!;
+		public CommandHandler CommandHandler { get; private set; } = null!;
+		public GeoIP? GeoIP { get; private set; } = null!;
+		public PlaceholderHandler PlaceholderHandler { get; private set; } = null!;
 		public Database Database { get; private set; } = null!;
 		public DateTime _lastStorageSave = DateTime.Now;
 
@@ -42,7 +47,10 @@ namespace Zenith
 				}
 			}).Wait();
 
-			Menu = new Menu.KitsuneMenu(this);
+			Menu = new KitsuneMenu(this);
+			CommandHandler = new CommandHandler(this);
+			GeoIP = new GeoIP(this);
+			PlaceholderHandler = new PlaceholderHandler(this);
 
 			Initialize_API();
 
@@ -51,7 +59,6 @@ namespace Zenith
 				Initialize_Events();
 				Initialize_Settings();
 				Initialize_Commands();
-				Initialize_Placeholders();
 
 				Player.RegisterModuleSettings(this, new Dictionary<string, object?>
 				{
@@ -152,8 +159,8 @@ namespace Zenith
 			ConfigManager.Dispose();
 			Player.Dispose(this);
 
-			RemoveAllCommands();
-			RemoveModulePlaceholders();
+			CommandHandler.RemoveCommands();
+			PlaceholderHandler.RemovePlaceholders();
 		}
 	}
 }

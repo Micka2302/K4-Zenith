@@ -1,6 +1,4 @@
-using System.Reflection;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Localization;
 
@@ -42,44 +40,6 @@ namespace ZenithAPI
 		/// </summary>
 		/// <param name="defaultStorage">A dictionary of default storage items.</param>
 		void RegisterModuleStorage(Dictionary<string, object?> defaultStorage);
-
-		/// <summary>
-		/// Registers a command for a module.
-		/// </summary>
-		/// <param name="command">The command to register.</param>
-		/// <param name="description">The description of the command.</param>
-		/// <param name="handler">The callback function to execute when the command is invoked.</param>
-		/// <param name="usage">The usage type of the command.</param>
-		/// <param name="argCount">The number of arguments required for the command.</param>
-		/// <param name="helpText">The help text to display when the command is used incorrectly.</param>
-		/// <param name="permission">The permission required to use the command.</param>
-		void RegisterModuleCommand(string command, string description, CommandInfo.CommandCallback handler, CommandUsage usage = CommandUsage.CLIENT_AND_SERVER, int argCount = 0, string? helpText = null, string? permission = null);
-
-		/// <summary>
-		/// Registers multiple commands for a module.
-		/// </summary>
-		/// <param name="commands">The commands to register.</param>
-		/// <param name="description">The description of the commands.</param>
-		/// <param name="handler">The callback function to execute when the commands are invoked.</param>
-		/// <param name="usage">The usage type of the commands.</param>
-		/// <param name="argCount">The number of arguments required for the commands.</param>
-		/// <param name="helpText">The help text to display when the commands are used incorrectly.</param>
-		/// <param name="permission">The permission required to use the commands.</param>
-		void RegisterModuleCommands(List<string> commands, string description, CommandInfo.CommandCallback handler, CommandUsage usage = CommandUsage.CLIENT_AND_SERVER, int argCount = 0, string? helpText = null, string? permission = null);
-
-		/// <summary>
-		/// Registers a placeholder for a player-specific value.
-		/// </summary>
-		/// <param name="key">The key of the placeholder.</param>
-		/// <param name="valueFunc">The function to retrieve the value.</param>
-		void RegisterModulePlayerPlaceholder(string key, Func<CCSPlayerController, string> valueFunc);
-
-		/// <summary>
-		/// Registers a placeholder for a server-specific value.
-		/// </summary>
-		/// <param name="key">The key of the placeholder.</param>
-		/// <param name="valueFunc">The function to retrieve the value.</param>
-		void RegisterModuleServerPlaceholder(string key, Func<string> valueFunc);
 
 		/// <summary>
 		/// Registers a module configuration setting.
@@ -135,11 +95,6 @@ namespace ZenithAPI
 		/// Saves all player data to the database.
 		/// </summary>
 		void SaveAllOnlinePlayerData();
-
-		/// <summary>
-		/// Dispose the module's Zenith based resources such as commands, configs, and player datas.
-		/// </summary>
-		void DisposeModule(Assembly assembly);
 
 		void ResetModuleStorage(ulong steamId);
 

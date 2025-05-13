@@ -122,7 +122,7 @@ namespace Zenith
 			new ConcurrentDictionary<(Type, Type), Func<object, object>>();
 
 		private static readonly ConcurrentDictionary<string, Timer> _pendingSaveTimers = new ConcurrentDictionary<string, Timer>();
-		private static readonly TimeSpan _saveDelay = TimeSpan.FromMilliseconds(500); // Batch saves with 500ms delay
+		private static readonly TimeSpan _saveDelay = TimeSpan.FromMilliseconds(500);
 
 		private static ILogger Logger = null!;
 		private static Plugin Plugin = null!;

@@ -17,28 +17,21 @@ namespace Zenith_Ranks;
 [MinimumApiVersion(300)]
 public sealed partial class Plugin : BasePlugin
 {
-	private const string MODULE_ID = "Ranks";
-
-	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
+	public override string ModuleName => $"K4-Zenith | Ranks";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
 	public override string ModuleVersion => "2.0.0";
 
-	private readonly string _moduleName;
+	internal string _moduleName = Assembly.GetExecutingAssembly().GetName().Name!;
 
-	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
+	internal PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private DateTime _lastPlaytimeCheck = DateTime.Now;
 	public KitsuneMenu Menu { get; private set; } = null!;
 
-	public Plugin()
-	{
-		_moduleName = Assembly.GetExecutingAssembly().GetName().Name!;
-	}
-
 	public CCSGameRules? GameRules { get; private set; }
 	private IZenithEvents? _zenithEvents;
 	private IModuleServices? _moduleServices;
-	private bool _isGameEnd;
+	internal bool _isGameEnd;
 	public IModuleConfigAccessor _coreAccessor = null!;
 
 	public override void OnAllPluginsLoaded(bool hotReload)
@@ -108,10 +101,10 @@ public sealed partial class Plugin : BasePlugin
 			}
 		}, TimerFlags.REPEAT);
 
-		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
+		Logger.LogInformation("{0} module successfully registered.", ModuleName);
 	}
 
-	private T GetCachedConfigValue<T>(string section, string key) where T : notnull
+	internal T GetCachedConfigValue<T>(string section, string key) where T : notnull
 	{
 		try
 		{
@@ -304,12 +297,6 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
-	public class PlayerExtendedData
-	{
-		public bool HasSpawned { get; set; } = false;
-		public int RoundPoints { get; set; } = 0;
-	}
-
 	private void SetPlayerPointsWithCache(IPlayerServices player, long points)
 	{
 		// Update storage value
@@ -374,19 +361,5 @@ public sealed partial class Plugin : BasePlugin
 			return player.GetStorage<long>("Points").ToString();
 
 		return "0";
-	}
-
-	public class PlayerRankInfo
-	{
-		public Rank? Rank { get; set; }
-		public Rank? NextRank { get; set; }
-		public DateTime LastUpdate { get; set; }
-		public KillStreakInfo KillStreak { get; set; } = new KillStreakInfo();
-	}
-
-	public class KillStreakInfo
-	{
-		public int KillCount { get; set; }
-		public long LastKillTime { get; set; }
 	}
 }

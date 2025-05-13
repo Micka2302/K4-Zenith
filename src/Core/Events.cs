@@ -7,6 +7,7 @@ namespace Zenith
 	using CounterStrikeSharp.API.Modules.UserMessages;
 	using CounterStrikeSharp.API.Modules.Utils;
 	using Zenith.Models;
+	using ZenithAPI;
 
 	public sealed partial class Plugin : BasePlugin
 	{
@@ -39,19 +40,13 @@ namespace Zenith
 
 			string message = um.ReadString("param2");
 
-			string formattedMessage = FormatMessage(player.Controller!, $" {dead}{team}{tag}{namecolor}{um.ReadString("param1")}{Localizer.ForPlayer(player.Controller, "k4.tag.separator")}{chatcolor}{message}");
+			string formattedMessage = ChatColor.ReplaceColors($" {dead}{team}{tag}{namecolor}{um.ReadString("param1")}{Localizer.ForPlayer(player.Controller, "k4.tag.separator")}{chatcolor}{message}", player.Controller);
 
 			um.SetString("messagename", formattedMessage);
 
 			_moduleServices?.InvokteZenithChatMessage(player.Controller!, message, formattedMessage);
 
 			return HookResult.Changed;
-		}
-
-		private static string FormatMessage(CCSPlayerController player, string message)
-		{
-			return StringExtensions.ReplaceColorTags(message)
-				.Replace("{team}", ChatColors.ForPlayer(player).ToString());
 		}
 
 		private string TeamLocalizer(CCSPlayerController player)
@@ -85,7 +80,7 @@ namespace Zenith
 
 			string joinFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
 			if (!string.IsNullOrEmpty(joinFormat))
-				_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(ReplacePlaceholders(player.Controller, joinFormat)), false);
+				_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(PlaceholderHandler.ReplacePlaceholders(joinFormat, player.Controller)), false);
 
 			player.Dispose();
 

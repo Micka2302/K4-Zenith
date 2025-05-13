@@ -38,15 +38,12 @@ public sealed partial class Plugin : BasePlugin
 		List<MenuItem> items = [];
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = ZenithHelper.FormatNumber(rank.Point);
+			string formattedPoints = ZenithString.FormatNumber(rank.Point);
 			string rankInfo = $"<font color='{rank.HexColor}'>{rank.Name}</font>: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			items.Add(new MenuItem(MenuItemType.Button, [new MenuValue(rankInfo)]));
 		}
-		Menu.ShowScrollableMenu(player.Controller, Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"), items, (buttons, menu, selected) =>
-		{
-			// No action needed when an item is selected, as we're just displaying information
-			// Can be extended later if needed
-		}, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && player.GetSetting<bool>("FreezeInMenu", "K4-Zenith"), 5, disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));
+
+		Menu.ShowScrollableMenu(player.Controller, Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"), items, null, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && player.GetSetting<bool>("FreezeInMenu", "K4-Zenith"), 5, disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatRanksList(IPlayerServices player)
@@ -54,10 +51,11 @@ public sealed partial class Plugin : BasePlugin
 		ChatMenu menu = new ChatMenu(Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"));
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = ZenithHelper.FormatNumber(rank.Point);
+			string formattedPoints = ZenithString.FormatNumber(rank.Point);
 			string rankInfo = $"{rank.ChatColor}{rank.Name}{ChatColors.Default}: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			menu.AddMenuOption(rankInfo, (p, o) => { });
 		}
+
 		MenuManager.OpenChatMenu(player.Controller, menu);
 	}
 
