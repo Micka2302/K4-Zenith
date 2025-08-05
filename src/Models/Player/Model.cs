@@ -1,3 +1,4 @@
+using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
@@ -50,7 +51,7 @@ public sealed partial class Player
 
 		Controller = controller;
 		SteamID = controller?.SteamID ?? 0;
-		Name = controller?.PlayerName ?? "Unknown";
+		Name = ValidatePlayerName(controller?.PlayerName ?? "Unknown");
 
 		if (List.Values.Any(player => player.Controller == controller))
 			return;
@@ -284,6 +285,38 @@ public sealed partial class Player
 	// +--------------------+
 	// | PLAYER DISPOSER    |
 	// +--------------------+
+
+	// +--------------------+
+	// | HELPER METHODS     |
+	// +--------------------+
+
+	private static string ValidatePlayerName(string playerName)
+	{
+		if (string.IsNullOrEmpty(playerName))
+			return "Unknown";
+
+		// Check if name exceeds MySQL UTF-8MB4 byte limit for VARCHAR(255)
+		// Each Unicode character can be up to 4 bytes in UTF-8MB4
+		var nameBytes = Encoding.UTF8.GetByteCount(playerName);
+		if (nameBytes > 255)
+		{
+			// Truncate to fit within 255 bytes while preserving character boundaries
+			var truncated = Encoding.UTF8.GetString(
+				Encoding.UTF8.GetBytes(playerName), 0,
+				Math.Min(nameBytes, 250) // Leave some margin for safety
+			);
+
+			// Remove any incomplete characters at the end
+			while (truncated.Length > 0 && Encoding.UTF8.GetByteCount(truncated) > 250)
+			{
+				truncated = truncated[..^1];
+			}
+
+			return truncated + "...";
+		}
+
+		return playerName;
+	}
 
 	public void Dispose()
 	{
