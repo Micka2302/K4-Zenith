@@ -23,13 +23,13 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="ZenithAPI">
-      <HintPath>$(ProjectDir)\..\..\src-api\bin\Release\net8.0\K4-ZenithAPI.dll</HintPath>
+      <HintPath>$(ProjectDir)\..\..\src-api\bin\Release\net8.0\publish\Kitsune-SDK.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="KitsuneMenu">
-      <HintPath>C:\Developments\KitsuneMenu\bin\Debug\net8.0\KitsuneMenu.dll</HintPath>
+      <HintPath>/Users/sples/Projects/CS2_Random/Menu-main/src/bin/KitsuneMenu/shared/KitsuneMenu/KitsuneMenu.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
