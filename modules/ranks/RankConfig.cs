@@ -1,7 +1,9 @@
+
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Core;
+using System.Text.Json.Serialization;
 using ZenithAPI;
 
 namespace Zenith_Ranks;
@@ -12,7 +14,9 @@ public sealed partial class Plugin : BasePlugin
 
     public void Initialize_Ranks()
     {
-        string ranksFilePath = Path.Join(ModuleDirectory, "ranks.jsonc"); string defaultRanksContent = @"[
+        string ranksFilePath = Path.Join(ModuleDirectory, "ranks.jsonc");
+
+        string defaultRanksContent = @"[
     {
         ""Name"": ""Silver I"",
         ""Image"": """", // Image URL for the rank. This can be used for web integrations such as GameCMS
@@ -22,11 +26,11 @@ public sealed partial class Plugin : BasePlugin
         ""Permissions"": [ // You can add permissions to the rank. If you don't want to add any, remove this array
             {
                 ""DisplayName"": ""Super Permission"", // This is the name of the permission. Will be displayed in the menu of ranks to let people know the benefits of a rank
-                ""PermissionName"": ""@my-plugin/permission1"" // This is the permission name. You can assign 3rd party permissions here
+                ""PermissionName"": ""permission1"" // This is the permission name. You can assign 3rd party permissions here
             },
             {
                 ""DisplayName"": ""Legendary Permission"",
-                ""PermissionName"": ""@my-plugin/permission2""
+                ""PermissionName"": ""permission2""
             }
             // You can add as many as you want
         ]
@@ -34,119 +38,119 @@ public sealed partial class Plugin : BasePlugin
     {
         ""Name"": ""Silver II"",
         ""Image"": """",
-        ""Point"": 1500,
+        ""Point"": 5000,
         ""ChatColor"": ""grey"",
         ""HexColor"": ""#C0C0C0""
     },
     {
         ""Name"": ""Silver III"",
         ""Image"": """",
-        ""Point"": 3000,
+        ""Point"": 10000,
         ""ChatColor"": ""grey"",
         ""HexColor"": ""#C0C0C0""
     },
     {
         ""Name"": ""Silver IV"",
         ""Image"": """",
-        ""Point"": 4500,
+        ""Point"": 15000,
         ""ChatColor"": ""grey"",
         ""HexColor"": ""#C0C0C0""
     },
     {
         ""Name"": ""Silver Elite"",
         ""Image"": """",
-        ""Point"": 6000,
+        ""Point"": 20000,
         ""ChatColor"": ""grey"",
         ""HexColor"": ""#C0C0C0""
     },
     {
         ""Name"": ""Silver Elite Master"",
         ""Image"": """",
-        ""Point"": 8000,
+        ""Point"": 25000,
         ""ChatColor"": ""grey"",
         ""HexColor"": ""#C0C0C0""
     },
     {
         ""Name"": ""Gold Nova I"",
         ""Image"": """",
-        ""Point"": 10000,
+        ""Point"": 30000,
         ""ChatColor"": ""gold"",
         ""HexColor"": ""#FFD700""
     },
     {
         ""Name"": ""Gold Nova II"",
         ""Image"": """",
-        ""Point"": 13000,
+        ""Point"": 40000,
         ""ChatColor"": ""gold"",
         ""HexColor"": ""#FFD700""
     },
     {
         ""Name"": ""Gold Nova III"",
         ""Image"": """",
-        ""Point"": 17000,
+        ""Point"": 50000,
         ""ChatColor"": ""gold"",
         ""HexColor"": ""#FFD700""
     },
     {
         ""Name"": ""Gold Nova Master"",
         ""Image"": """",
-        ""Point"": 22000,
+        ""Point"": 60000,
         ""ChatColor"": ""gold"",
         ""HexColor"": ""#FFD700""
     },
     {
         ""Name"": ""Master Guardian I"",
         ""Image"": """",
-        ""Point"": 28000,
+        ""Point"": 75000,
         ""ChatColor"": ""green"",
         ""HexColor"": ""#00FF00""
     },
     {
         ""Name"": ""Master Guardian II"",
         ""Image"": """",
-        ""Point"": 35000,
+        ""Point"": 90000,
         ""ChatColor"": ""green"",
         ""HexColor"": ""#00FF00""
     },
     {
         ""Name"": ""Master Guardian Elite"",
         ""Image"": """",
-        ""Point"": 43000,
+        ""Point"": 110000,
         ""ChatColor"": ""green"",
         ""HexColor"": ""#00FF00""
     },
     {
         ""Name"": ""Distinguished Master Guardian"",
         ""Image"": """",
-        ""Point"": 52000,
+        ""Point"": 130000,
         ""ChatColor"": ""green"",
         ""HexColor"": ""#00FF00""
     },
     {
         ""Name"": ""Legendary Eagle"",
         ""Image"": """",
-        ""Point"": 62000,
+        ""Point"": 160000,
         ""ChatColor"": ""blue"",
         ""HexColor"": ""#0000FF""
     },
     {
         ""Name"": ""Legendary Eagle Master"",
         ""Image"": """",
-        ""Point"": 70000,
+        ""Point"": 190000,
         ""ChatColor"": ""blue"",
         ""HexColor"": ""#0000FF""
     },
     {
         ""Name"": ""Supreme Master First Class"",
         ""Image"": """",
-        ""Point"": 75000,
+        ""Point"": 230000,
         ""ChatColor"": ""purple"",
         ""HexColor"": ""#800080""
     },
     {
         ""Name"": ""Global Elite"",
         ""Image"": """",
-        ""Point"": 80000,
+        ""Point"": 280000,
         ""ChatColor"": ""lightred"",
         ""HexColor"": ""#FF4040""
     }
@@ -205,11 +209,37 @@ public sealed partial class Plugin : BasePlugin
         Logger.LogWarning("Invalid content found. Default ranks file regenerated.");
     }
 
-    private static string RemoveComments(string content)
+    private string RemoveComments(string content)
     {
-        return CommentRegex().Replace(content, string.Empty);
+        return Regex.Replace(content, @"/\*(.*?)\*/|//(.*)", string.Empty, RegexOptions.Multiline);
     }
 
-    [GeneratedRegex(@"/\*(.*?)\*/|//(.*)", RegexOptions.Multiline)]
-    private static partial Regex CommentRegex();
+    public class Rank
+    {
+        public int Id { get; set; }
+
+        [JsonPropertyName("Name")]
+        public required string Name { get; set; }
+
+        [JsonPropertyName("Point")]
+        public int Point { get; set; }
+
+        [JsonPropertyName("ChatColor")]
+        public string ChatColor { get; set; } = "default";
+
+        [JsonPropertyName("HexColor")]
+        public string HexColor { get; set; } = "#FFFFFF";
+
+        [JsonPropertyName("Permissions")]
+        public List<Permission>? Permissions { get; set; }
+    }
+
+    public class Permission
+    {
+        [JsonPropertyName("DisplayName")]
+        public string DisplayName { get; set; } = "";
+
+        [JsonPropertyName("PermissionName")]
+        public string PermissionName { get; set; } = "";
+    }
 }

@@ -9,8 +9,10 @@ namespace Zenith
 {
 	public sealed partial class Plugin : BasePlugin
 	{
-		private async Task TransferOldData()
+		private async Task MigrateOldData()
 		{
+			Logger.LogInformation("Starting migratable data checks...");
+
 			try
 			{
 				using var connection = Database.CreateConnection();
@@ -53,7 +55,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-Ranks.storage` JSON NULL");
 			}
 
-			const string migrateQuery = $@"
+			var migrateQuery = $@"
                 INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-Ranks.storage`)
                 SELECT
                     k.`steam_id`,
@@ -94,7 +96,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-Stats.storage` JSON NULL");
 			}
 
-			const string migrateQuery = $@"
+			var migrateQuery = $@"
 				INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-Stats.storage`)
 				SELECT
 					s.`steam_id`,
@@ -175,7 +177,7 @@ namespace Zenith
 					$"ALTER TABLE `{Models.Player.TABLE_PLAYER_STORAGE}` ADD COLUMN `K4-Zenith-TimeStats.storage` JSON NULL");
 			}
 
-			const string migrateQuery = $@"
+			var migrateQuery = $@"
 				INSERT INTO `{Models.Player.TABLE_PLAYER_STORAGE}` (`steam_id`, `last_online`, `K4-Zenith-TimeStats.storage`)
 				SELECT
 					t.`steam_id`,

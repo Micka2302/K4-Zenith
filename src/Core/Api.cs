@@ -126,6 +126,9 @@ namespace Zenith
 
 			private void OnStorageChanged(string key, object? oldValue, object? newValue)
 				=> StorageChanged?.Invoke(this, new SettingChangedEventArgs(Controller, key, oldValue, newValue));
+
+			public string ReplacePlaceholders(string text) =>
+				_plugin.ReplacePlayerPlaceholders(_player.Controller, text);
 		}
 
 		public class ModuleServices : IModuleServices
@@ -142,14 +145,13 @@ namespace Zenith
 			public event Action<string>? OnZenithStorageReset;
 			public event Action<bool>? OnZenithCoreUnload;
 			public event Action<CCSPlayerController, string, string>? OnZenithChatMessage;
-			public event Action<string, string, string, object>? OnZenithConfigChanged;
 
 			public IZenithEvents GetEventHandler() => this;
 
 			public void PrintForAll(string message, bool showPrefix = true)
 			{
 				Console.ForegroundColor = ConsoleColor.DarkYellow;
-				Console.WriteLine($"{ChatColor.RemoveColorValues(_plugin.Localizer["k4.general.prefix"])}{message}");
+				Console.WriteLine($"{RemoveColorChars(_plugin.Localizer["k4.general.prefix"])}{message}");
 				Console.ResetColor();
 
 				foreach (var player in Player.List.Values)
@@ -173,7 +175,7 @@ namespace Zenith
 				if (player == null)
 				{
 					Console.ForegroundColor = ConsoleColor.DarkYellow;
-					Console.WriteLine($"{ChatColor.RemoveColorValues(_plugin.Localizer.ForPlayer(player, "k4.general.prefix"))}{message}");
+					Console.WriteLine($"{RemoveColorChars(_plugin.Localizer.ForPlayer(player, "k4.general.prefix"))}{message}");
 					Console.ResetColor();
 					return;
 				}
@@ -196,9 +198,6 @@ namespace Zenith
 			internal void InvokteZenithChatMessage(CCSPlayerController player, string message, string full)
 				=> OnZenithChatMessage?.Invoke(player, message, full);
 
-			internal void InvokeZenithConfigChanged(string moduleName, string groupName, string configName, object newValue)
-				=> OnZenithConfigChanged?.Invoke(moduleName, groupName, configName, newValue);
-
 			public string GetConnectionString()
 				=> _plugin.Database.GetConnectionString();
 
@@ -207,6 +206,18 @@ namespace Zenith
 
 			public void RegisterModuleStorage(Dictionary<string, object?> defaultStorage)
 				=> Player.RegisterModuleStorage(_plugin, defaultStorage);
+
+			public void RegisterModuleCommand(string command, string description, CommandInfo.CommandCallback handler, CommandUsage usage = CommandUsage.CLIENT_AND_SERVER, int argCount = 0, string? helpText = null, string? permission = null)
+				=> _plugin.RegisterZenithCommand(command, description, handler, usage, argCount, helpText, permission);
+
+			public void RegisterModuleCommands(List<string> commands, string description, CommandInfo.CommandCallback handler, CommandUsage usage = CommandUsage.CLIENT_AND_SERVER, int argCount = 0, string? helpText = null, string? permission = null)
+				=> _plugin.RegisterZenithCommand(commands, description, handler, usage, argCount, helpText, permission);
+
+			public void RegisterModulePlayerPlaceholder(string key, Func<CCSPlayerController, string> valueFunc)
+				=> _plugin.RegisterZenithPlayerPlaceholder(key, valueFunc);
+
+			public void RegisterModuleServerPlaceholder(string key, Func<string> valueFunc)
+				=> _plugin.RegisterZenithServerPlaceholder(key, valueFunc);
 
 			public void RegisterModuleConfig<T>(string groupName, string configName, string description, T defaultValue, ConfigFlag flags = ConfigFlag.None) where T : notnull
 				=> Plugin.RegisterModuleConfig(groupName, configName, description, defaultValue, flags);
@@ -224,10 +235,15 @@ namespace Zenith
 				=> _plugin.GetModuleConfigAccessor();
 
 			public void LoadAllOnlinePlayerData()
-				=> Task.Run(async () => await DatabaseBatchOperations.LoadAllOnlinePlayerDataWithOptimizedBatching(_plugin));
+				=> Player.LoadAllOnlinePlayerDataWithSingleQuery(_plugin);
 
 			public void SaveAllOnlinePlayerData()
-				=> Task.Run(async () => await DatabaseBatchOperations.SaveAllOnlinePlayerDataWithOptimizedBatching(_plugin));
+				=> Task.Run(() => Player.SaveAllOnlinePlayerDataWithTransaction(_plugin));
+
+			public void DisposeModule(Assembly assembly)
+			{
+				_plugin.DisposeModule(assembly.GetName().Name!);
+			}
 
 			public void ResetModuleStorage(ulong steamId)
 				=> Player.ResetOfflineData(_plugin, steamId, Player.TABLE_PLAYER_STORAGE);

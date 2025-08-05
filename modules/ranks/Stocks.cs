@@ -8,6 +8,23 @@ namespace Zenith_Ranks;
 
 public sealed partial class Plugin : BasePlugin
 {
+	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
+	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
+
+	public IEnumerable<IPlayerServices> GetValidPlayers()
+	{
+		foreach (var player in Utilities.GetPlayers())
+		{
+			if (player != null)
+			{
+				if (_playerCache.TryGetValue(player, out var zenithPlayer))
+				{
+					yield return zenithPlayer;
+				}
+			}
+		}
+	}
+
 	public void ModifyPlayerPoints(IPlayerServices player, int points, string eventKey, string? extraInfo = null)
 	{
 		if (points == 0) return;
@@ -25,37 +42,31 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		long currentPoints = player.GetStorage<long>("Points");
-		long maxPoints = GetCachedConfigValue<long>("Settings", "MaxPoints");
-
-		long newPoints = Math.Clamp(currentPoints + points, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
+		long newPoints = Math.Max(0, currentPoints + points);
 
 		if (currentPoints == newPoints)
 			return;
 
-		// Update storage and cache in one call
-		SetPlayerPointsWithCache(player, newPoints);
+		player.SetStorage("Points", newPoints);
+		playerData.LastUpdate = DateTime.Now;
 
 		if (scoreboardSync && player.Controller.Score != (int)newPoints)
 		{
 			player.Controller.Score = (int)newPoints;
 		}
 
+		UpdatePlayerRank(player, playerData, newPoints);
+
 		if (showSummaries || !player.GetSetting<bool>("ShowRankChanges"))
 		{
-			// Get the player's extended data to store round points
-			var extendedData = PlayerCacheManager.GetOrAddPlayer(_moduleName, player.SteamID, _ => new PlayerExtendedData());
-
-			// Update round points for the player
-			extendedData.RoundPoints += points;
-
-			// Save back to the cache
-			PlayerCacheManager.SetPlayer(_moduleName, player.SteamID, extendedData);
+			_roundPoints[player.Controller] = _roundPoints.TryGetValue(player.Controller, out int existingPoints)
+				? existingPoints + points
+				: points;
 		}
 		else
 		{
 			string message = Localizer.ForPlayer(player.Controller, points >= 0 ? "k4.phrases.gain" : "k4.phrases.loss",
 				$"{newPoints:N0}", Math.Abs(points), extraInfo ?? Localizer.ForPlayer(player.Controller, eventKey));
-
 			Server.NextFrame(() => player.Print(message));
 		}
 	}
@@ -96,83 +107,65 @@ public sealed partial class Plugin : BasePlugin
 		return rank1.Point.CompareTo(rank2.Point);
 	}
 
-	internal PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
+	private PlayerRankInfo GetOrUpdatePlayerRankInfo(IPlayerServices player)
 	{
-		return PlayerCacheManager.GetOrAddPlayer(_moduleName, player.SteamID, (steamId) =>
+		if (_playerRankCache.TryGetValue(player.SteamID, out var rankInfo) && (DateTime.Now - rankInfo.LastUpdate) < _playerCacheExpiration)
 		{
-			var currentPoints = player.GetStorage<long>("Points");
-			var (determinedRank, nextRank) = DetermineRanks(currentPoints);
+			return rankInfo;
+		}
 
-			return new PlayerRankInfo
-			{
-				Rank = determinedRank,
-				NextRank = nextRank,
-				LastUpdate = DateTime.Now,
-				KillStreak = new KillStreakInfo()
-			};
-		});
+		var currentPoints = player.GetStorage<long>("Points");
+
+		var (determinedRank, nextRank) = DetermineRanks(currentPoints);
+
+		rankInfo = new PlayerRankInfo
+		{
+			Rank = determinedRank,
+			NextRank = nextRank,
+			LastUpdate = DateTime.Now
+		};
+
+		_playerRankCache[player.SteamID] = rankInfo;
+		return rankInfo;
 	}
 
-	internal (Rank? CurrentRank, Rank? NextRank) DetermineRanks(long points)
+	private (Rank? CurrentRank, Rank? NextRank) DetermineRanks(long points)
 	{
-		if (Ranks.Count == 0)
-			return (null, null);
+		Rank? currentRank = null;
+		Rank? nextRank = null;
 
-		int low = 0;
-		int high = Ranks.Count - 1;
-		int bestRankIndex = -1;
-
-		// Binary search to find the highest rank that the player qualifies for
-		while (low <= high)
+		foreach (var rank in Ranks)
 		{
-			int mid = low + (high - low) / 2;
-
-			if (Ranks[mid].Point <= points)
+			if (points >= rank.Point)
 			{
-				bestRankIndex = mid;
-				low = mid + 1;  // Look for a higher rank
+				currentRank = rank;
 			}
 			else
 			{
-				high = mid - 1;  // Look for a lower rank
+				nextRank = rank;
+				break;
 			}
 		}
-
-		// Determine current and next rank
-		Rank? currentRank = bestRankIndex >= 0 ? Ranks[bestRankIndex] : null;
-		Rank? nextRank = bestRankIndex + 1 < Ranks.Count ? Ranks[bestRankIndex + 1] : null;
 
 		return (currentRank, nextRank);
 	}
 
 	public int CalculateDynamicPoints(IPlayerServices attacker, IPlayerServices victim, int basePoints)
 	{
-		// Fast path return if basePoints is 0
-		if (basePoints == 0) return 0;
-
-		// Check if dynamic points are enabled directly from config cache
-		bool dynamicPointsEnabled = GetCachedConfigValue<bool>("Settings", "DynamicDeathPoints");
-
-		// Return base points if dynamic points are disabled
-		if (!dynamicPointsEnabled)
+		if (!_configAccessor.GetValue<bool>("Settings", "DynamicDeathPoints"))
 			return basePoints;
 
-		// Get points from players
 		long attackerPoints = attacker.GetStorage<long>("Points");
 		long victimPoints = victim.GetStorage<long>("Points");
 
-		// Another fast path for simple cases
 		if (attackerPoints <= 0 || victimPoints <= 0)
 			return basePoints;
 
-		// Calculate the result directly - no need to cache since player points change frequently
-		double minMultiplier = GetCachedConfigValue<double>("Settings", "DynamicDeathPointsMinMultiplier");
-		double maxMultiplier = GetCachedConfigValue<double>("Settings", "DynamicDeathPointsMaxMultiplier");
+		double minMultiplier = _configAccessor.GetValue<double>("Settings", "DynamicDeathPointsMinMultiplier");
+		double maxMultiplier = _configAccessor.GetValue<double>("Settings", "DynamicDeathPointsMaxMultiplier");
 
 		double pointsRatio = Math.Clamp(victimPoints / (double)attackerPoints, minMultiplier, maxMultiplier);
-		int result = (int)Math.Round(pointsRatio * basePoints);
-
-		return result;
+		return (int)Math.Round(pointsRatio * basePoints);
 	}
 
 	private void UpdateScoreboards()
@@ -185,12 +178,30 @@ public sealed partial class Plugin : BasePlugin
 		int rankBase = GetCachedConfigValue<int>("Settings", "RankBase");
 		int rankMargin = GetCachedConfigValue<int>("Settings", "RankMargin");
 
-		foreach (var player in ZenithPlayer.GetValidPlayers())
+		foreach (var player in GetValidPlayers())
 		{
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, currentPoints, rankMax, rankBase, rankMargin);
+		}
+	}
+
+	private static string FormatPoints(int points)
+	{
+		if (points >= 1000000)
+		{
+			double millions = points / 1000000.0;
+			return $"{millions:F1}M";
+		}
+		else if (points >= 1000)
+		{
+			double thousands = points / 1000.0;
+			return $"{thousands:F1}k";
+		}
+		else
+		{
+			return points.ToString();
 		}
 	}
 }

@@ -12,14 +12,8 @@
   "commands.error.invalid_immunity": "{lightred}Nie możesz wybrać tego gracza jako cel.",
   "commands.error.invalid_target": "{lightred}Cel nie został znaleziony.",
   "commands.error.invalid_dead": "{lightred}Cel musi być żywy.",
-  "commands.error.invalid_alive": "{lightred}Cel musi być martwy.",
   "commands.error.invalid_team": "{lightred}Nieprawidłowa drużyna.",
   "commands.error.invalid_convar": "{lightred}Podany ConVar jest nieprawidłowy.",
-  "commands.error.grenade_limit": "{lightred}Cel osiągnął limit granatów wynoszący {gold}{0}{lightred}.",
-  "commands.error.flashbang_limit": "{lightred}Cel osiągnął limit granatów błyskowych wynoszący {gold}{0}{lightred}.",
-  "commands.error.default_limit": "{lightred}Cel osiągnął domyślny limit granatów wynoszący {gold}{0}{lightred}.",
-  "commands.error.healthshot_limit": "{lightred}Cel osiągnął limit zastrzyków zdrowia wynoszący {gold}{0}{lightred}.",
-  "commands.error.multiple_targets": "{lightred}Znaleziono wiele celów z podanymi kryteriami. Proszę być bardziej precyzyjnym lub użyć grup @. Jeśli próbujesz wybrać specjalne nazwy, użyj cudzysłowów dla nazw takich jak {gold}\"t e s t\"{lightred}.",
 
   "commands.hp.success": "{gold}{0} {silver}ustawił zdrowie {gold}{1}{silver} na {gold}{2}{silver}.",
   "commands.armor.success": "{gold}{0} {silver}ustawił pancerz {gold}{1}{silver} na {gold}{2}{silver}.",
@@ -47,9 +41,5 @@
   "commands.god.disable": "{gold}{0} {silver}wyłączył tryb boga dla {gold}{1}{silver}.",
   "commands.team.success": "{gold}{0} {silver}ustawił drużynę {gold}{1}{silver} na {gold}{2}{silver}.",
   "commands.swap.success": "{gold}{0} {silver}zamienił drużyny {gold}{1}{silver}.",
-  "commands.hide.success": "{gold}Jesteś teraz ukryty.",
-  "commands.ghosting.header": "{gold}Gracze na tych samych adresach IP:",
-  "commands.ghosting.none": "{lightred}Nie znaleziono graczy na tym samym IP.",
-  "commands.ghosting.ip": "{gold}IP: {0}",
-  "commands.ghosting.player": "{silver} - {gold}{0} {silver}({gold}{1}{silver})"
+  "commands.hide.success": "{gold}Jesteś teraz ukryty."
 }

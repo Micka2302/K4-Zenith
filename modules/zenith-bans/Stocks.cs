@@ -182,20 +182,7 @@ namespace Zenith_Bans
 
 		private void HandleTargetSelection(CCSPlayerController controller, CommandInfo info, PunishmentType type, string durationConfigKey, string reasonConfigKey)
 		{
-			var targetString = info.GetArg(1);
-			var targetResult = info.GetArgTargetResult(1);
-
-			if (!targetResult.Any())
-			{
-				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.targetnotfound"));
-				return;
-			}
-
-			if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
-			{
-				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.multiple_targets"));
-				return;
-			}
+			TargetResult targetResult = info.GetArgTargetResult(1);
 
 			if (type == PunishmentType.Kick || type == PunishmentType.SilentKick || type == PunishmentType.Warn)
 			{
@@ -219,20 +206,8 @@ namespace Zenith_Bans
 
 		private void HandleFullCommand(CCSPlayerController controller, CommandInfo info, PunishmentType type)
 		{
-			var targetString = info.GetArg(1);
-			var targetResult = info.GetArgTargetResult(1);
-
-			if (!targetResult.Any())
-			{
-				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.targetnotfound"));
-				return;
-			}
-
-			if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
-			{
-				_moduleServices?.PrintForPlayer(controller, Localizer.ForPlayer(controller, "k4.general.multiple_targets"));
-				return;
-			}
+			TargetResult targetResult = info.GetArgTargetResult(1);
+			string targetString = info.GetArg(1);
 
 			if (type == PunishmentType.Kick || type == PunishmentType.SilentKick || type == PunishmentType.Warn)
 			{
@@ -466,14 +441,13 @@ namespace Zenith_Bans
 			});
 		}
 
-		private bool ShouldShowActivity(ulong? adminSteamId, CCSPlayerController player, bool showName, bool blockable = true)
+		private bool ShouldShowActivity(ulong? adminSteamId, CCSPlayerController player, bool showName)
 		{
+			if (!adminSteamId.HasValue) return true; // Always show console activity
 			if (!_coreAccessor.HasValue("Core", "ShowActivity")) return true; // Show activity if no ZenithBans installed
 
 			int showActivity = _coreAccessor.GetValue<int>("Core", "ShowActivity");
-			if (blockable && showActivity == 0) return false; // If the setting is 0, never show
-
-			if (!adminSteamId.HasValue) return true; // Always show console activity
+			if (showActivity == 0) return false; // If the setting is 0, never show
 
 			bool isRoot = AdminManager.PlayerHasPermissions(player, "@zenith/root");
 			bool isPlayerAdmin = AdminManager.PlayerHasPermissions(player, "@zenith/admin");
@@ -606,7 +580,7 @@ namespace Zenith_Bans
 			using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 			await connection.OpenAsync();
 
-			const string query = $@"
+			var query = $@"
 				SELECT COALESCE(pr.immunity, 0) as immunity
 				FROM zenith_bans_players p
 				LEFT JOIN zenith_bans_player_ranks pr ON p.id = pr.player_id
@@ -1223,7 +1197,7 @@ namespace Zenith_Bans
 				using var connection = new MySqlConnection(_moduleServices?.GetConnectionString());
 				await connection.OpenAsync();
 
-				const string query = $@"
+				var query = $@"
 					SELECT p.steam_id, p.name
 					FROM zenith_bans_players p
 					JOIN zenith_bans_ip_addresses ip ON p.id = ip.player_id
@@ -1233,17 +1207,16 @@ namespace Zenith_Bans
 
 				if (!affectedPlayers.Any())
 				{
-					const string insertPlayerQuery = $@"
+					var insertPlayerQuery = $@"
 						INSERT INTO zenith_bans_players (steam_id, name, last_online)
 						VALUES (@SteamId, @Name, NOW());
 						SELECT LAST_INSERT_ID();";
 
-					// TODO: No random steam id needed
 					var randomSteamId = 76561100000000000 + new Random().Next(0, 999999999);
 					var playerId = await connection.ExecuteScalarAsync<int>(insertPlayerQuery,
 						new { SteamId = randomSteamId, Name = $"Unknown_{ipAddress.Replace(".", "_")}" });
 
-					const string insertIpQuery = $@"
+					var insertIpQuery = $@"
 						INSERT INTO zenith_bans_ip_addresses (player_id, ip_address)
 						VALUES (@PlayerId, @IpAddress)";
 

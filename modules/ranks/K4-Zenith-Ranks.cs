@@ -14,16 +14,16 @@ using ZenithAPI;
 
 namespace Zenith_Ranks;
 
-[MinimumApiVersion(300)]
+[MinimumApiVersion(260)]
 public sealed partial class Plugin : BasePlugin
 {
-	public override string ModuleName => $"K4-Zenith | Ranks";
+	private const string MODULE_ID = "Ranks";
+
+	public override string ModuleName => $"K4-Zenith | {MODULE_ID}";
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
-	public override string ModuleVersion => "2.0.0";
+	public override string ModuleVersion => "1.0.18";
 
-	internal string _moduleName = Assembly.GetExecutingAssembly().GetName().Name!;
-
-	internal PlayerCapability<IPlayerServices>? _playerServicesCapability;
+	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private DateTime _lastPlaytimeCheck = DateTime.Now;
 	public KitsuneMenu Menu { get; private set; } = null!;
@@ -31,8 +31,13 @@ public sealed partial class Plugin : BasePlugin
 	public CCSGameRules? GameRules { get; private set; }
 	private IZenithEvents? _zenithEvents;
 	private IModuleServices? _moduleServices;
-	internal bool _isGameEnd;
+	private readonly HashSet<CCSPlayerController> _playerSpawned = [];
+	private readonly Dictionary<CCSPlayerController, IPlayerServices> _playerCache = [];
+	private bool _isGameEnd;
 	public IModuleConfigAccessor _coreAccessor = null!;
+
+	private readonly Dictionary<(string Section, string Key), object> _configCache = [];
+	private readonly TimeSpan _playerCacheExpiration = TimeSpan.FromSeconds(5);
 
 	public override void OnAllPluginsLoaded(bool hotReload)
 	{
@@ -73,15 +78,12 @@ public sealed partial class Plugin : BasePlugin
 			message.Send();
 		}, TimerFlags.REPEAT);
 
-		AddTimer(5.0f, () =>
+		AddTimer((float)_playerCacheExpiration.TotalSeconds, () =>
 		{
 			try
 			{
-				// Clean up expired entries in the central cache
-				// Use the stored module name
-				PlayerCacheManager.CleanupExpiredPlayers(_moduleName);
+				CleanupCache();
 
-				// Handle playtime rewards
 				int interval = GetCachedConfigValue<int>("Points", "PlaytimeInterval");
 				if (interval <= 0) return;
 
@@ -101,36 +103,30 @@ public sealed partial class Plugin : BasePlugin
 			}
 		}, TimerFlags.REPEAT);
 
-		Logger.LogInformation("{0} module successfully registered.", ModuleName);
+		Logger.LogInformation("Zenith {0} module successfully registered.", MODULE_ID);
 	}
 
-	internal T GetCachedConfigValue<T>(string section, string key) where T : notnull
+	private void CleanupCache()
 	{
-		try
+		var expiredTime = DateTime.Now - _playerCacheExpiration;
+		var expiredKeys = _playerRankCache.Where(kvp => kvp.Value.LastUpdate < expiredTime)
+										  .Select(kvp => kvp.Key)
+										  .ToList();
+		foreach (var key in expiredKeys)
 		{
-			// Use the centralized config cache with stored module name
-			return ConfigCacheManager.GetOrAddValue<T>(
-				_moduleName,
-				section,
-				key,
-				() => _coreAccessor.GetValue<T>(section, key)
-			);
+			_playerRankCache.Remove(key);
 		}
-		catch (Exception ex)
-		{
-			Logger.LogError($"Error retrieving config value {section}.{key}: {ex.Message}");
+	}
 
-			// Try to get the value directly from the config as fallback
-			try
-			{
-				return _coreAccessor.GetValue<T>(section, key);
-			}
-			catch
-			{
-				// Re-throw the original exception if we can't recover
-				throw;
-			}
-		}
+	private T GetCachedConfigValue<T>(string section, string key) where T : notnull
+	{
+		var cacheKey = (section, key);
+		if (_configCache.TryGetValue(cacheKey, out var value))
+			return (T)value;
+
+		value = _configAccessor.GetValue<T>(section, key);
+		_configCache[cacheKey] = value;
+		return (T)value;
 	}
 
 	private bool InitializeZenithAPI()
@@ -143,12 +139,6 @@ public sealed partial class Plugin : BasePlugin
 
 			if (_moduleServices == null)
 				throw new InvalidOperationException("Failed to get Module-Services API for Zenith.");
-
-			// Register with the central player cache system
-			PlayerCacheManager.RegisterModule(_moduleName, TimeSpan.FromSeconds(5));
-
-			// Register with the central config cache system
-			ConfigCacheManager.RegisterModule(_moduleName);
 
 			return true;
 		}
@@ -207,7 +197,14 @@ public sealed partial class Plugin : BasePlugin
 			_zenithEvents.OnZenithPlayerLoaded += OnZenithPlayerLoaded;
 			_zenithEvents.OnZenithPlayerUnloaded += OnZenithPlayerUnloaded;
 			_zenithEvents.OnZenithCoreUnload += OnZenithCoreUnload;
-			_zenithEvents.OnZenithStorageReset += OnZenithStorageReset;
+			_zenithEvents.OnZenithStorageReset += (moduleID) =>
+			{
+				if (moduleID == Assembly.GetExecutingAssembly().GetName().Name)
+				{
+					_playerRankCache.Clear();
+					_roundPoints.Clear();
+				}
+			};
 		}
 		else
 		{
@@ -223,38 +220,22 @@ public sealed partial class Plugin : BasePlugin
 
 	private void OnZenithPlayerLoaded(CCSPlayerController player)
 	{
-		var handler = _playerServicesCapability.GetZenithPlayer(player);
+		var handler = GetZenithPlayer(player);
 		if (handler == null)
 		{
 			Logger.LogError($"Failed to get player services for {player.PlayerName}");
 			return;
 		}
 
-		// Initialize the player in the central cache by accessing their data
-		long currentPoints = handler.GetStorage<long>("Points");
-		var (determinedRank, nextRank) = DetermineRanks(currentPoints);
-
-		// Store rank information in cache
-		PlayerCacheManager.SetPlayer(_moduleName, player.SteamID, new PlayerRankInfo
-		{
-			Rank = determinedRank,
-			NextRank = nextRank,
-			LastUpdate = DateTime.Now,
-			KillStreak = new KillStreakInfo()
-		});
-
-		// Store extended player data in cache
-		PlayerCacheManager.SetPlayer(_moduleName, player.SteamID, new PlayerExtendedData
-		{
-			HasSpawned = false,
-			RoundPoints = 0
-		});
+		_playerCache[player] = handler;
+		_playerSpawned.Add(player);
 	}
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
 	{
-		// Explicitly remove from central cache when player leaves
-		PlayerCacheManager.RemovePlayer(_moduleName, player.SteamID);
+		_playerRankCache.Remove(player.SteamID);
+		_playerCache.Remove(player);
+		_playerSpawned.Remove(player);
 	}
 
 	private void OnZenithCoreUnload(bool hotReload)
@@ -271,58 +252,14 @@ public sealed partial class Plugin : BasePlugin
 
 	public override void Unload(bool hotReload)
 	{
-		// Unsubscribe from events when module is unloaded
-		if (_zenithEvents != null)
-		{
-			_zenithEvents.OnZenithPlayerLoaded -= OnZenithPlayerLoaded;
-			_zenithEvents.OnZenithPlayerUnloaded -= OnZenithPlayerUnloaded;
-			_zenithEvents.OnZenithCoreUnload -= OnZenithCoreUnload;
-			_zenithEvents.OnZenithStorageReset -= OnZenithStorageReset;
-		}
-
-		// Clean up module data in the centralized caches
-		PlayerCacheManager.CleanupModule(_moduleName);
-		ConfigCacheManager.InvalidateAllForModule(_moduleName);
-
 		_moduleServicesCapability?.Get()?.DisposeModule(GetType().Assembly);
 	}
 
-	private void OnZenithStorageReset(string moduleID)
+	public IPlayerServices? GetZenithPlayer(CCSPlayerController? player)
 	{
-		if (moduleID == _moduleName)
-		{
-			// Clear central cache data
-			PlayerCacheManager.CleanupModule(_moduleName);
-			ConfigCacheManager.InvalidateAllForModule(_moduleName);
-		}
-	}
-
-	private void SetPlayerPointsWithCache(IPlayerServices player, long points)
-	{
-		// Update storage value
-		player.SetStorage("Points", points);
-
-		// Update rank info in cache as the points have changed
-		long currentPoints = points;
-		var (determinedRank, nextRank) = DetermineRanks(currentPoints);
-
-		PlayerCacheManager.SetPlayer(_moduleName, player.SteamID, new PlayerRankInfo
-		{
-			Rank = determinedRank,
-			NextRank = nextRank,
-			LastUpdate = DateTime.Now,
-			KillStreak = GetPlayerKillStreak(player)
-		});
-	}
-
-	// Get player's kill streak from cache
-	private KillStreakInfo GetPlayerKillStreak(IPlayerServices player)
-	{
-		if (PlayerCacheManager.TryGetPlayer<PlayerRankInfo>(_moduleName, player.SteamID, out var rankInfo))
-		{
-			return rankInfo.KillStreak;
-		}
-		return new KillStreakInfo();
+		if (player == null) return null;
+		try { return _playerServicesCapability?.Get(player); }
+		catch { return null; }
 	}
 
 	private void UnloadPlugin()
@@ -332,8 +269,7 @@ public sealed partial class Plugin : BasePlugin
 
 	private string GetRankColor(CCSPlayerController p)
 	{
-		var player = _playerServicesCapability.GetZenithPlayer(p);
-		if (player != null)
+		if (_playerCache.TryGetValue(p, out var player))
 		{
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			return playerData.Rank?.ChatColor.ToString() ?? ChatColors.Default.ToString();
@@ -344,8 +280,7 @@ public sealed partial class Plugin : BasePlugin
 
 	private string GetRankName(CCSPlayerController p)
 	{
-		var player = _playerServicesCapability.GetZenithPlayer(p);
-		if (player != null)
+		if (_playerCache.TryGetValue(p, out var player))
 		{
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			return Localizer.ForPlayer(p, playerData.Rank?.Name ?? "k4.phrases.rank.none") ?? Localizer.ForPlayer(p, "k4.phrases.rank.none");
@@ -356,10 +291,23 @@ public sealed partial class Plugin : BasePlugin
 
 	private string GetPlayerPoints(CCSPlayerController p)
 	{
-		var player = _playerServicesCapability.GetZenithPlayer(p);
-		if (player != null)
+		if (_playerCache.TryGetValue(p, out var player))
 			return player.GetStorage<long>("Points").ToString();
 
 		return "0";
+	}
+
+	private class PlayerRankInfo
+	{
+		public Rank? Rank { get; set; }
+		public Rank? NextRank { get; set; }
+		public DateTime LastUpdate { get; set; }
+		public KillStreakInfo KillStreak { get; set; } = new KillStreakInfo();
+	}
+
+	private class KillStreakInfo
+	{
+		public int KillCount { get; set; }
+		public long LastKillTime { get; set; }
 	}
 }

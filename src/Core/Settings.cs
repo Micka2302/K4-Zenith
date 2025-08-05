@@ -1,6 +1,7 @@
 namespace Zenith
 {
 	using System.Text.Json;
+	using CounterStrikeSharp.API;
 	using CounterStrikeSharp.API.Core;
 	using CounterStrikeSharp.API.Core.Translations;
 	using CounterStrikeSharp.API.Modules.Commands;
@@ -19,7 +20,7 @@ namespace Zenith
 
 			foreach (var command in commands)
 			{
-				CommandHandler.RegisterCommand(command, "Change player Zenith settings and storage", (CCSPlayerController? player, CommandInfo commandInfo) =>
+				RegisterZenithCommand($"css_{command}", "Change player Zenith settings and storage", (CCSPlayerController? player, CommandInfo commandInfo) =>
 				{
 					if (player == null) return;
 

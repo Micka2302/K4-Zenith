@@ -3,7 +3,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
-using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Commands.Targeting;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -14,7 +13,7 @@ public sealed partial class Plugin : BasePlugin
 {
 	private void ProcessTargetAction(CCSPlayerController? caller, CCSPlayerController target, Action<CCSPlayerController> action, bool? aliveState = null)
 	{
-		if (caller != target && !AdminManager.CanPlayerTarget(caller, target))
+		if (!AdminManager.CanPlayerTarget(caller, target))
 		{
 			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.invalid_immunity", target.PlayerName));
 			return;
@@ -35,20 +34,11 @@ public sealed partial class Plugin : BasePlugin
 		action.Invoke(target);
 	}
 
-	private void ProcessTargetAction(CCSPlayerController? caller, CommandInfo info, int targetIndex, Action<CCSPlayerController> action, bool? aliveState = null)
+	private void ProcessTargetAction(CCSPlayerController? caller, TargetResult targetResult, Action<CCSPlayerController> action, bool? aliveState = null)
 	{
-		var targetString = info.GetArg(targetIndex);
-		var targetResult = info.GetArgTargetResult(targetIndex);
-
 		if (!targetResult.Any())
 		{
 			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.invalid_target"));
-			return;
-		}
-
-		if (!targetString.StartsWith('@') && targetResult.Players.Count > 1)
-		{
-			_moduleServices?.PrintForPlayer(caller, Localizer.ForPlayer(caller, "commands.error.multiple_targets"));
 			return;
 		}
 
@@ -91,7 +81,7 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
-	private static List<string> GetItems(CCSPlayerController player, gear_slot_t? slot = null, string? className = null)
+	private List<string> GetItems(CCSPlayerController player, gear_slot_t? slot = null, string? className = null)
 	{
 		List<string> items = new();
 		if (player.PlayerPawn.Value?.WeaponServices is null)
@@ -173,14 +163,13 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
-	private bool ShouldShowActivity(ulong? adminSteamId, CCSPlayerController player, bool showName, bool blockable = true)
+	private bool ShouldShowActivity(ulong? adminSteamId, CCSPlayerController player, bool showName)
 	{
+		if (!adminSteamId.HasValue) return true; // Always show console activity
 		if (!_coreAccessor.HasValue("Core", "ShowActivity")) return true; // Show activity if no ZenithBans installed
 
 		int showActivity = _coreAccessor.GetValue<int>("Core", "ShowActivity");
-		if (blockable && showActivity == 0) return false; // If the setting is 0, never show
-
-		if (!adminSteamId.HasValue) return true; // Always show console activity
+		if (showActivity == 0) return false; // If the setting is 0, never show
 
 		bool isRoot = AdminManager.PlayerHasPermissions(player, "@zenith/root");
 		bool isPlayerAdmin = AdminManager.PlayerHasPermissions(player, "@zenith/admin");

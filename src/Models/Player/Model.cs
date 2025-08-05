@@ -52,9 +52,6 @@ public sealed partial class Player
 		SteamID = controller?.SteamID ?? 0;
 		Name = controller?.PlayerName ?? "Unknown";
 
-		if (plugin.GeoIP != null)
-			_country = plugin.GeoIP.GetPlayerCountry(controller);
-
 		if (List.Values.Any(player => player.Controller == controller))
 			return;
 
@@ -205,6 +202,9 @@ public sealed partial class Player
 		Utilities.SetStateChanged(Controller, "CCSPlayerController", "m_szClan");
 	}
 
+	public string GetClanTag()
+		=> _clanTag?.Item1 ?? Controller?.Clan ?? string.Empty;
+
 	public void SetNameTag(string? tag, ActionPriority priority)
 	{
 		if (tag == null)
@@ -225,7 +225,7 @@ public sealed partial class Player
 		if (nameTag != null)
 			return nameTag;
 
-		return PlaceholderHandler.ReplacePlaceholders(_plugin.GetCoreConfig<string>("Modular", "PlayerChatRankFormat"), Controller);
+		return _plugin.ReplacePlayerPlaceholders(Controller!, _plugin.GetCoreConfig<string>("Modular", "PlayerChatRankFormat"));
 	}
 
 	public void SetNameColor(string? color, ActionPriority priority)
@@ -243,7 +243,7 @@ public sealed partial class Player
 	}
 
 	public char GetNameColor()
-			=> _nameColor != null ? ChatColor.GetValue(_nameColor.Item1, Controller) : ChatColors.ForPlayer(Controller!);
+			=> _nameColor != null ? ChatColorUtility.GetChatColorValue(_nameColor.Item1, Controller) : ChatColors.ForPlayer(Controller!);
 
 	public void SetChatColor(string? color, ActionPriority priority)
 	{
@@ -260,7 +260,7 @@ public sealed partial class Player
 	}
 
 	public char GetChatColor()
-		=> _chatColor != null ? ChatColor.GetValue(_chatColor.Item1, Controller) : ChatColors.Default;
+		=> _chatColor != null ? ChatColorUtility.GetChatColorValue(_chatColor.Item1, Controller) : ChatColors.Default;
 
 	public void EnforcePluginValues(string coreFormat)
 	{
@@ -275,7 +275,7 @@ public sealed partial class Player
 
 			if (!string.IsNullOrEmpty(clanTag))
 			{
-				Controller!.Clan = PlaceholderHandler.ReplacePlayerPlaceholders(clanTag, Controller);
+				Controller!.Clan = _plugin.ReplacePlayerPlaceholders(Controller, clanTag);
 				Utilities.SetStateChanged(Controller, "CCSPlayerController", "m_szClan");
 			}
 		}

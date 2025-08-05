@@ -7,14 +7,13 @@ using MySqlConnector;
 using System.Reflection;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
-using System.Data;
 
 namespace Zenith.Models;
 
 public sealed partial class Player
 {
-	public const string TABLE_PLAYER_SETTINGS = "zenith_player_settings";
-	public const string TABLE_PLAYER_STORAGE = "zenith_player_storage";
+	public static readonly string TABLE_PLAYER_SETTINGS = "zenith_player_settings";
+	public static readonly string TABLE_PLAYER_STORAGE = "zenith_player_storage";
 
 	public Dictionary<string, Dictionary<string, object?>> Settings = [];
 	public Dictionary<string, Dictionary<string, object?>> Storage = [];
@@ -71,7 +70,7 @@ public sealed partial class Player
 		using var connection = plugin.Database.CreateConnection();
 		await connection.OpenAsync();
 
-		const string columnExistsQuery = $@"
+		var columnExistsQuery = $@"
 			SELECT COUNT(*)
 			FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_SCHEMA = DATABASE()
@@ -357,7 +356,7 @@ public sealed partial class Player
 
 	private async Task UpdateLastOnline(MySqlConnection connection)
 	{
-		const string query = $@"
+		var query = $@"
 			INSERT INTO `{TABLE_PLAYER_SETTINGS}` (`steam_id`, `name`, `last_online`)
 			VALUES (@SteamID, @Name, NOW())
 			ON DUPLICATE KEY UPDATE `name` = @Name, `last_online` = NOW();
@@ -369,7 +368,7 @@ public sealed partial class Player
 		await connection.ExecuteAsync(query, new { SteamID = SteamID.ToString(), Name = Name });
 	}
 
-	public static void ApplyDefaultValues(Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults, Dictionary<string, Dictionary<string, object?>> targetDict)
+	private static void ApplyDefaultValues(Dictionary<string, (Dictionary<string, object?> Settings, IStringLocalizer? Localizer)> defaults, Dictionary<string, Dictionary<string, object?>> targetDict)
 	{
 		foreach (var module in defaults)
 		{
@@ -521,12 +520,10 @@ public sealed partial class Player
 
 		using var connection = plugin.Database.CreateConnection();
 		await connection.OpenAsync();
-		MySqlTransaction? transaction = null;
+		using var transaction = await connection.BeginTransactionAsync();
 
 		try
 		{
-			transaction = await connection.BeginTransactionAsync();
-
 			List<string> modulesToReset = realTarget == "all"
 				? [.. moduleDefaultStorage.Keys]
 				: moduleDefaultStorage.ContainsKey(realTarget) ? [realTarget] : [];
@@ -565,7 +562,6 @@ public sealed partial class Player
 			}
 
 			await transaction.CommitAsync();
-			transaction = null;
 
 			Server.NextWorldUpdate(() =>
 			{
@@ -585,28 +581,242 @@ public sealed partial class Player
 		}
 		catch (Exception ex)
 		{
-			try
-			{
-				if (transaction != null && connection.State == ConnectionState.Open)
-				{
-					await transaction.RollbackAsync();
-				}
-			}
-			catch (Exception rollbackEx)
-			{
-				plugin.Logger.LogError("Error in transaction rollback: {Message}", rollbackEx.Message);
-			}
-
+			await transaction.RollbackAsync();
 			plugin.Logger.LogError("Error in ResetModuleStorageAll: {Message}", ex.Message);
 			Server.NextWorldUpdate(() => caller?.Print($"An error occurred while resetting {realTarget} storage."));
 		}
+	}
+
+	public static void LoadAllOnlinePlayerDataWithSingleQuery(Plugin plugin)
+	{
+		var steamIds = new List<string>();
+		var playerList = new List<CCSPlayerController>();
+
+		foreach (var player in Utilities.GetPlayers())
+		{
+			if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV && !List.Values.Any(p => p.SteamID.ToString() == player.SteamID.ToString()))
+			{
+				steamIds.Add(player.SteamID.ToString());
+				playerList.Add(player);
+			}
+		}
+
+		if (steamIds.Count == 0)
+			return;
+
+		try
+		{
+			Task.Run(async () =>
+			{
+				using var connection = plugin.Database.CreateConnection();
+				await connection.OpenAsync();
+
+				var query = $@"
+				SELECT
+					s.steam_id,
+					s.last_online AS settings_last_online,
+					st.last_online AS storage_last_online,
+					{string.Join(",", moduleDefaultSettings.Keys.Select(k => $"s.`{MySqlHelper.EscapeString(k)}.settings` AS `{k}_settings`"))},
+					{string.Join(",", moduleDefaultStorage.Keys.Select(k => $"st.`{MySqlHelper.EscapeString(k)}.storage` AS `{k}_storage`"))}
+				FROM
+					`{TABLE_PLAYER_SETTINGS}` s
+				LEFT JOIN
+					`{TABLE_PLAYER_STORAGE}` st ON s.steam_id = st.steam_id
+				WHERE
+					s.steam_id IN @SteamIDs;";
+
+				var results = await connection.QueryAsync<IDictionary<string, object>>(query, new { SteamIDs = steamIds });
+
+				Server.NextWorldUpdate(() =>
+				{
+					foreach (var result in results)
+					{
+						var steamId = result["steam_id"].ToString();
+						var player = List.Values.FirstOrDefault(p => p.SteamID.ToString() == steamId);
+
+						if (player == null)
+							continue;
+
+						LoadPlayerDataFromResult(player, result, plugin);
+						player.Loaded = true;
+
+						plugin._moduleServices?.InvokeZenithPlayerLoaded(player.Controller!);
+					}
+				});
+			});
+		}
+		catch (Exception ex)
+		{
+			plugin.Logger.LogError($"An error occurred while querying the database: {ex.Message}");
+
+			Server.NextWorldUpdate(() =>
+			{
+				plugin.AddTimer(15.0f, () => Task.Run(() => LoadAllOnlinePlayerDataWithSingleQuery(plugin)));
+				return;
+			});
+		}
+	}
+
+	private static void LoadPlayerDataFromResult(Player player, IDictionary<string, object> result, Plugin plugin)
+	{
+		foreach (var module in moduleDefaultSettings.Keys)
+		{
+			var settingsKey = $"{module}_settings";
+			if (result.TryGetValue(settingsKey, out object? value) && value != null)
+			{
+				try
+				{
+					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(value.ToString()!);
+					if (moduleData != null)
+					{
+						if (!player.Settings.TryGetValue(module, out var moduleDict))
+						{
+							moduleDict = new Dictionary<string, object?>();
+							player.Settings[module] = moduleDict;
+						}
+
+						foreach (var item in moduleData)
+						{
+							moduleDict[item.Key] = item.Value;
+						}
+					}
+				}
+				catch (JsonException ex)
+				{
+					plugin.Logger.LogError($"Error deserializing settings data for module {module}: {ex.Message}");
+				}
+			}
+		}
+
+		foreach (var module in moduleDefaultStorage.Keys)
+		{
+			var storageKey = $"{module}_storage";
+			if (result.TryGetValue(storageKey, out object? value) && value != null)
+			{
+				try
+				{
+					var moduleData = JsonSerializer.Deserialize<Dictionary<string, object>>(value.ToString()!);
+					if (moduleData != null)
+					{
+						if (!player.Storage.TryGetValue(module, out var moduleDict))
+						{
+							moduleDict = new Dictionary<string, object?>();
+							player.Storage[module] = moduleDict;
+						}
+
+						foreach (var item in moduleData)
+						{
+							moduleDict[item.Key] = item.Value;
+						}
+					}
+				}
+				catch (JsonException ex)
+				{
+					plugin.Logger.LogError($"Error deserializing storage data for module {module}: {ex.Message}");
+				}
+			}
+		}
+
+		ApplyDefaultValues(moduleDefaultSettings, player.Settings);
+		ApplyDefaultValues(moduleDefaultStorage, player.Storage);
+	}
+
+	public static async Task SaveAllOnlinePlayerDataWithTransaction(Plugin plugin)
+	{
+		var playerDataToSave = new Dictionary<string, (Dictionary<string, string> Settings, Dictionary<string, string> Storage)>();
+
+		foreach (var player in List.Values)
+		{
+			if (!player.Loaded)
+				continue;
+
+			var settingsData = new Dictionary<string, string>();
+			var storageData = new Dictionary<string, string>();
+
+			ProcessPlayerData(player.Settings, settingsData, "settings");
+			ProcessPlayerData(player.Storage, storageData, "storage");
+
+			playerDataToSave[player.SteamID.ToString()] = (settingsData, storageData);
+		}
+
+		if (playerDataToSave.Count == 0)
+			return;
+
+		try
+		{
+			using var connection = plugin.Database.CreateConnection();
+			await connection.OpenAsync();
+
+			using var transaction = await connection.BeginTransactionAsync();
+
+			try
+			{
+				foreach (var isStorage in new[] { false, true })
+				{
+					string tableName = isStorage ? TABLE_PLAYER_STORAGE : TABLE_PLAYER_SETTINGS;
+
+					foreach (var playerData in playerDataToSave)
+					{
+						var steamId = playerData.Key;
+						var data = isStorage ? playerData.Value.Storage : playerData.Value.Settings;
+
+						if (data.Count == 0)
+							continue;
+
+						await SavePlayerDataToDatabase(connection, tableName, steamId, data, transaction);
+					}
+				}
+
+				await transaction.CommitAsync();
+			}
+			catch
+			{
+				await transaction.RollbackAsync();
+				throw;
+			}
+		}
+		catch (Exception ex)
+		{
+			plugin.Logger.LogError($"An error occurred while saving player data: {ex.Message}");
+		}
+	}
+
+	private static void ProcessPlayerData(Dictionary<string, Dictionary<string, object?>> sourceDict, Dictionary<string, string> targetDict, string dataType)
+	{
+		foreach (var moduleGroup in sourceDict)
+		{
+			var moduleID = moduleGroup.Key;
+			var moduleData = moduleGroup.Value;
+			targetDict[$"{moduleID}.{dataType}"] = JsonSerializer.Serialize(moduleData);
+		}
+	}
+
+	private static async Task SavePlayerDataToDatabase(MySqlConnection connection, string tableName, string steamId, Dictionary<string, string> data, MySqlTransaction transaction)
+	{
+		var columns = string.Join(", ", data.Keys.Select(k => $"`{MySqlHelper.EscapeString(k)}`"));
+		var parameters = string.Join(", ", data.Keys.Select((_, i) => $"@param{i}"));
+		var updateStatements = string.Join(", ", data.Keys.Select((k, i) => $"`{MySqlHelper.EscapeString(k)}` = @param{i}"));
+
+		var query = $@"
+        INSERT INTO `{tableName}` (`steam_id`, {columns})
+        VALUES (@steamId, {parameters})
+        ON DUPLICATE KEY UPDATE {updateStatements};";
+
+		var queryParams = new DynamicParameters();
+		queryParams.Add("@steamId", steamId);
+		for (int i = 0; i < data.Count; i++)
+		{
+			queryParams.Add($"@param{i}", data.ElementAt(i).Value);
+		}
+
+		await connection.ExecuteAsync(query, queryParams, transaction);
 	}
 
 	public static void Dispose(Plugin plugin)
 	{
 		Task.Run(async () =>
 		{
-			await DatabaseBatchOperations.SaveAllOnlinePlayerDataWithOptimizedBatching(plugin);
+			await SaveAllOnlinePlayerDataWithTransaction(plugin);
 		});
 	}
 

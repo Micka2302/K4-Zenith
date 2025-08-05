@@ -34,6 +34,8 @@ public class Plugin : BasePlugin
 	private IModuleServices? _moduleServices;
 
 	private readonly Dictionary<CCSPlayerController, IPlayerServices> _playerCache = [];
+	private readonly Dictionary<CCSPlayerController, CounterStrikeSharp.API.Modules.Timers.Timer> _removalTimers = [];
+
 	public KitsuneMenu Menu { get; private set; } = null!;
 	public IModuleConfigAccessor _coreAccessor = null!;
 
@@ -93,14 +95,6 @@ public class Plugin : BasePlugin
 			if (player == null) return;
 			ShowTagSelectionMenu(player);
 		}, CommandUsage.CLIENT_ONLY);
-
-		_moduleServices?.RegisterModuleCommand("reloadtags", "Reload tag configurations", (player, info) =>
-		{
-			GetTagConfigs(true);
-			GetPredefinedTagConfigs(true);
-
-			_moduleServices?.PrintForPlayer(player, "Tag configurations reloaded.");
-		}, CommandUsage.CLIENT_AND_SERVER, permission: "@zenith/root");
 
 		if (hotReload)
 		{
@@ -387,22 +381,14 @@ public class Plugin : BasePlugin
 		}
 	}
 
-	private Dictionary<string, TagConfig> GetTagConfigs(bool forceReload = false)
+	private Dictionary<string, TagConfig> GetTagConfigs()
 	{
 		try
 		{
-			if (!forceReload && _tagConfigs != null)
-				return _tagConfigs;
-
 			string configPath = Path.Combine(ModuleDirectory, "tags.json");
 			string json = File.ReadAllText(configPath);
 			string strippedJson = StripComments(json);
-			_tagConfigs = JsonSerializer.Deserialize<Dictionary<string, TagConfig>>(strippedJson, _jsonOptions) ?? [];
-
-			if (forceReload)
-				Logger.LogInformation("Tag configurations reloaded manually");
-
-			return _tagConfigs;
+			return JsonSerializer.Deserialize<Dictionary<string, TagConfig>>(strippedJson, _jsonOptions) ?? [];
 		}
 		catch (Exception ex)
 		{
@@ -411,25 +397,14 @@ public class Plugin : BasePlugin
 		}
 	}
 
-	private Dictionary<string, PredefinedTagConfig> GetPredefinedTagConfigs(bool forceReload = false)
+	private Dictionary<string, PredefinedTagConfig> GetPredefinedTagConfigs()
 	{
 		try
 		{
-			// Return cached configs if available and not forcing reload
-			if (!forceReload && _predefinedConfigs != null)
-				return _predefinedConfigs;
-
-			// Need to reload configs
 			string configPath = Path.Combine(ModuleDirectory, "predefined_tags.json");
 			string json = File.ReadAllText(configPath);
 			string strippedJson = StripComments(json);
-			_predefinedConfigs = JsonSerializer.Deserialize<Dictionary<string, PredefinedTagConfig>>(strippedJson, _jsonOptions) ?? [];
-
-			// Log config reload
-			if (forceReload)
-				Logger.LogInformation("Predefined tag configurations reloaded manually");
-
-			return _predefinedConfigs;
+			return JsonSerializer.Deserialize<Dictionary<string, PredefinedTagConfig>>(strippedJson, _jsonOptions) ?? [];
 		}
 		catch (Exception ex)
 		{
@@ -475,6 +450,12 @@ public class Plugin : BasePlugin
 
 			string choosenTag = zenithPlayer.GetStorage<string>("ChoosenTag") ?? "Default";
 
+			if (_removalTimers.TryGetValue(player, out var existingTimer))
+			{
+				existingTimer.Kill();
+				_removalTimers.Remove(player);
+			}
+
 			if (choosenTag == "None")
 			{
 				ApplyNullConfig(zenithPlayer);
@@ -495,7 +476,24 @@ public class Plugin : BasePlugin
 
 				if (!existsForUser)
 				{
-					zenithPlayer.SetStorage("ChoosenTag", "Default");
+					float removalDelay = _coreAccessor.GetValue<float>("Config", "TagRemovalDelay");
+					if (removalDelay > 0)
+					{
+						_removalTimers[player] = AddTimer(removalDelay, () =>
+						{
+							if (!CheckTagAvailability(player, choosenTag))
+							{
+								zenithPlayer.SetStorage("ChoosenTag", "Default");
+								ApplyTagConfig(player);
+								_removalTimers.Remove(player);
+							}
+						});
+						return;
+					}
+					else
+					{
+						zenithPlayer.SetStorage("ChoosenTag", "Default");
+					}
 				}
 				else
 					return;
@@ -653,17 +651,26 @@ public class Plugin : BasePlugin
 		}
 
 		_playerCache[player] = zenithPlayer;
-
-		AddTimer(3f, () => ApplyTagConfig(player));
+		ApplyTagConfig(player);
 	}
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
 	{
+		if (_removalTimers.TryGetValue(player, out var timer))
+		{
+			timer.Kill();
+			_removalTimers.Remove(player);
+		}
 		_playerCache.Remove(player);
 	}
 
 	public override void Unload(bool hotReload)
 	{
+		foreach (var timer in _removalTimers.Values)
+		{
+			timer.Kill();
+		}
+		_removalTimers.Clear();
 		_playerCache.Clear();
 
 		_moduleServicesCapability?.Get()?.DisposeModule(this.GetType().Assembly);

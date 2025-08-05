@@ -109,6 +109,7 @@ namespace Zenith_Bans
 
 				if (buttons == MenuButtons.Select)
 				{
+					Server.PrintToChatAll($"{caller.PlayerName} selected option: {menu.Option} - length size: {lengthList.Count}");
 					callback(lengthList[menu.Option]);
 				}
 			}, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(caller)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));

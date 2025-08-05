@@ -1011,7 +1011,7 @@ public class Plugin : BasePlugin
 			using var connection = new MySqlConnection(connectionString);
 			await connection.OpenAsync();
 
-			const string query = $@"
+			string query = $@"
 				SELECT `weapon`, `kills`, `shots`, `hits`, `headshots`, `chest_hits`, `stomach_hits`, `left_arm_hits`, `right_arm_hits`, `left_leg_hits`, `right_leg_hits`, `neck_hits`, `gear_hits`
 				FROM `zenith_weapon_stats`
 				WHERE `steam_id` = @SteamId";
@@ -1055,7 +1055,7 @@ public class Plugin : BasePlugin
 			using var connection = new MySqlConnection(connectionString);
 			await connection.OpenAsync();
 
-			const string query = $@"
+			string query = $@"
 				SELECT * FROM `zenith_map_stats`
 				WHERE `steam_id` = @SteamId AND `map_name` = @MapName";
 
@@ -1279,7 +1279,7 @@ public class Plugin : BasePlugin
 				using var connection = new MySqlConnection(connectionString);
 				await connection.OpenAsync();
 
-				const string query = $@"
+				string query = $@"
 					INSERT INTO `zenith_weapon_stats`
 					(`steam_id`, `weapon`, `kills`, `shots`, `hits`, `headshots`, `chest_hits`, `stomach_hits`, `left_arm_hits`, `right_arm_hits`, `left_leg_hits`, `right_leg_hits`, `neck_hits`, `gear_hits`)
 					VALUES (@SteamId, @Weapon, @Kills, @Shots, @Hits, @Headshots, @ChestHits, @StomachHits, @LeftArmHits, @RightArmHits, @LeftLegHits, @RightLegHits, @NeckHits, @GearHits)
@@ -1329,7 +1329,7 @@ public class Plugin : BasePlugin
 				using var connection = new MySqlConnection(connectionString);
 				await connection.OpenAsync();
 
-				const string query = $@"
+				string query = $@"
 					INSERT INTO `zenith_map_stats`
 					(`steam_id`, `map_name`, `kills`, `first_blood`, `deaths`, `assists`, `shoots`, `hits_taken`, `hits_given`,
 					`headshots`, `head_hits`, `chest_hits`, `stomach_hits`, `left_arm_hits`, `right_arm_hits`, `left_leg_hits`, `right_leg_hits`,

@@ -10,7 +10,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>Zenith_Ranks</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="*">
@@ -19,11 +18,10 @@
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json" Version="*" />
-    <PackageReference Include="YamlDotNet" Version="13.1.1" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="ZenithAPI">
-      <HintPath>$(ProjectDir)\..\..\src-api\bin\Release\net8.0\publish\Kitsune-SDK.dll</HintPath>
+      <HintPath>$(ProjectDir)\..\..\src-api\bin\K4-ZenithAPI\K4-ZenithAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

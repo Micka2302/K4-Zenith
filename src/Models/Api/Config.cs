@@ -19,7 +19,7 @@ namespace Zenith
 			try
 			{
 				string configDirectory = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp", "configs", "zenith");
-				_configManager = new ConfigManager(configDirectory, this);
+				_configManager = new ConfigManager(configDirectory, Logger);
 				RegisterCoreConfigs();
 			}
 			catch (Exception ex)
@@ -33,7 +33,7 @@ namespace Zenith
 		{
 			string callerPlugin = CallerIdentifier.GetCallingPluginName();
 			Logger.LogInformation($"Module {callerPlugin} requested config accessor.");
-			return ConfigManager.GetModuleAccessor(callerPlugin);
+			return _configManager.GetModuleAccessor(callerPlugin);
 		}
 
 		public static void RegisterModuleConfig<T>(string groupName, string configName, string description, T defaultValue, ConfigFlag flags = ConfigFlag.None) where T : notnull
@@ -115,65 +115,22 @@ namespace Zenith
 		private static string CoreModuleName => Assembly.GetEntryAssembly()?.GetName().Name ?? "K4-Zenith";
 		private static string _baseConfigDirectory = string.Empty;
 		private static readonly ConcurrentDictionary<string, ModuleConfig> _moduleConfigs = new ConcurrentDictionary<string, ModuleConfig>();
-
-		private static readonly ConcurrentDictionary<string, ConfigItem> _configLookupCache = new ConcurrentDictionary<string, ConfigItem>();
-
-		private static readonly ConcurrentDictionary<(Type, Type), Func<object, object>> _typeConverterCache =
-			new ConcurrentDictionary<(Type, Type), Func<object, object>>();
-
-		private static readonly ConcurrentDictionary<string, Timer> _pendingSaveTimers = new ConcurrentDictionary<string, Timer>();
-		private static readonly TimeSpan _saveDelay = TimeSpan.FromMilliseconds(500);
-
 		private static ILogger Logger = null!;
-		private static Plugin Plugin = null!;
 		public static bool GlobalChangeTracking { get; set; } = false;
 		public static bool GlobalAutoReloadEnabled { get; set; } = false;
 		private static FileSystemWatcher? _watcher;
 
-		private static readonly Lazy<IDeserializer> _deserializer = new Lazy<IDeserializer>(() =>
-			new DeserializerBuilder()
-				.WithNamingConvention(CamelCaseNamingConvention.Instance)
-				.IgnoreUnmatchedProperties()
-				.Build());
-
-		private static readonly Lazy<ISerializer> _serializer = new Lazy<ISerializer>(() =>
-			new SerializerBuilder()
-				.WithNamingConvention(CamelCaseNamingConvention.Instance)
-				.DisableAliases()
-				.ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
-				.Build());
-
-		public ConfigManager(string baseConfigDirectory, Plugin plugin)
+		public ConfigManager(string baseConfigDirectory, ILogger logger)
 		{
 			_baseConfigDirectory = baseConfigDirectory;
-			Logger = plugin.Logger;
-			Plugin = plugin;
+			Logger = logger;
 			Directory.CreateDirectory(_baseConfigDirectory);
 			Directory.CreateDirectory(Path.Combine(_baseConfigDirectory, "modules"));
 
 			SetupFileWatcher();
-			InitializeTypeConverters();
 		}
 
-		private static void InitializeTypeConverters()
-		{
-			// String to common types
-			_typeConverterCache[(typeof(string), typeof(int))] = value => Convert.ToInt32((string)value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(string), typeof(float))] = value => Convert.ToSingle((string)value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(string), typeof(double))] = value => Convert.ToDouble((string)value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(string), typeof(decimal))] = value => Convert.ToDecimal((string)value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(string), typeof(bool))] = value => Convert.ToBoolean((string)value, CultureInfo.InvariantCulture);
-
-			// Object to common types
-			_typeConverterCache[(typeof(object), typeof(int))] = value => Convert.ToInt32(value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(object), typeof(float))] = value => Convert.ToSingle(value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(object), typeof(double))] = value => Convert.ToDouble(value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(object), typeof(decimal))] = value => Convert.ToDecimal(value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(object), typeof(bool))] = value => Convert.ToBoolean(value, CultureInfo.InvariantCulture);
-			_typeConverterCache[(typeof(object), typeof(string))] = value => value.ToString() ?? string.Empty;
-		}
-
-		public static ModuleConfigAccessor GetModuleAccessor(string moduleName)
+		public ModuleConfigAccessor GetModuleAccessor(string moduleName)
 		{
 			return new ModuleConfigAccessor(moduleName);
 		}
@@ -185,7 +142,7 @@ namespace Zenith
 				NotifyFilter = NotifyFilters.LastWrite,
 				Filter = "*.yaml",
 				IncludeSubdirectories = true,
-				EnableRaisingEvents = GlobalAutoReloadEnabled
+				EnableRaisingEvents = true
 			};
 
 			_watcher.Changed += OnConfigFileChanged;
@@ -195,12 +152,6 @@ namespace Zenith
 		public static void Dispose()
 		{
 			_watcher?.Dispose();
-
-			foreach (var timer in _pendingSaveTimers.Values)
-			{
-				timer.Dispose();
-			}
-			_pendingSaveTimers.Clear();
 		}
 
 		public static void SetGlobalAutoReload(bool enabled)
@@ -212,28 +163,20 @@ namespace Zenith
 			}
 		}
 
-		private static readonly ConcurrentDictionary<string, Timer> _debounceTimers = new ConcurrentDictionary<string, Timer>();
+		private static Timer? _debounceTimer;
 
 		private static void OnConfigFileChanged(object sender, FileSystemEventArgs e)
 		{
 			if (!GlobalAutoReloadEnabled)
 				return;
 
-			if (_debounceTimers.TryRemove(e.FullPath, out var existingTimer))
-			{
-				existingTimer.Dispose();
-			}
-
-			var newTimer = new Timer(DebounceCallback, e.FullPath, 1000, Timeout.Infinite);
-			_debounceTimers[e.FullPath] = newTimer;
+			_debounceTimer?.Dispose();
+			_debounceTimer = new Timer(DebounceCallback, e.FullPath, 1000, Timeout.Infinite);
 		}
 
 		private static void DebounceCallback(object? state)
 		{
 			var fullPath = (string)state!;
-
-			_debounceTimers.TryRemove(fullPath, out _);
-
 			var relativePath = Path.GetRelativePath(_baseConfigDirectory, fullPath);
 			var pathParts = relativePath.Split(Path.DirectorySeparatorChar);
 			if (pathParts.Length >= 2 && pathParts[0] == "modules")
@@ -256,8 +199,6 @@ namespace Zenith
 
 			if (_moduleConfigs.TryGetValue(moduleName, out var existingConfig))
 			{
-				bool configChanged = false;
-
 				foreach (var group in newConfig.Groups)
 				{
 					var existingGroup = existingConfig.Groups.GetOrAdd(group.Key, new ConfigGroup { Name = group.Value.Name });
@@ -266,66 +207,26 @@ namespace Zenith
 					{
 						if (existingGroup.Items.TryGetValue(item.Key, out var existingItem))
 						{
-							if (item.Value.CurrentValue != null && !item.Value.CurrentValue.Equals(existingItem.CurrentValue))
-							{
-								existingItem.CurrentValue = item.Value.CurrentValue;
-								configChanged = true;
-
-								InvalidateConfigCache(moduleName, group.Key, item.Key);
-
-								// Trigger the OnZenithConfigChanged event for external changes
-								Plugin._moduleServices?.InvokeZenithConfigChanged(moduleName, group.Key, item.Key, item.Value.CurrentValue);
-							}
+							existingItem.CurrentValue = item.Value.CurrentValue ?? existingItem.CurrentValue;
 						}
 						else
 						{
 							existingGroup.Items[item.Key] = item.Value;
-							configChanged = true;
-
-							InvalidateConfigCache(moduleName, group.Key, item.Key);
 						}
 					}
-				}
-
-				if (configChanged)
-				{
-					Logger.LogDebug($"Config values changed for module {moduleName}");
 				}
 			}
 			else
 			{
 				_moduleConfigs[moduleName] = newConfig;
-
-				// Invalidate all caches for this module
-				InvalidateAllConfigCache(moduleName);
 			}
 
 			if (!force)
 				Logger.LogInformation($"Config reloaded for module {moduleName}");
 		}
 
-		private static void InvalidateConfigCache(string moduleName, string groupName, string configName)
-		{
-			string cacheKey = $"{moduleName}:{groupName}:{configName}";
-			_configLookupCache.TryRemove(cacheKey, out _);
-		}
-
-		private static void InvalidateAllConfigCache(string moduleName)
-		{
-			var keysToRemove = _configLookupCache.Keys
-				.Where(k => k.StartsWith($"{moduleName}:"))
-				.ToList();
-
-			foreach (var key in keysToRemove)
-			{
-				_configLookupCache.TryRemove(key, out _);
-			}
-		}
-
 		public static void ReloadAllConfigs()
 		{
-			_configLookupCache.Clear();
-
 			foreach (var moduleName in _moduleConfigs.Keys)
 			{
 				ReloadModuleConfig(moduleName, true);
@@ -351,50 +252,21 @@ namespace Zenith
 
 			existingConfig.Flags = flags;
 
-			ScheduleModuleConfigSave(moduleName);
+			SaveModuleConfig(moduleName);
 		}
 
 		public static bool HasConfigValue(string callerModule, string groupName, string configName)
 		{
-			string cacheKey = $"{callerModule}:{groupName}:{configName}";
-			if (_configLookupCache.TryGetValue(cacheKey, out _))
-			{
-				return true;
-			}
-
 			if (_moduleConfigs.TryGetValue(callerModule, out var moduleConfig))
 			{
-				if (moduleConfig.Groups.TryGetValue(groupName, out var group))
-				{
-					var result = group.Items.ContainsKey(configName);
-
-					if (result && group.Items.TryGetValue(configName, out var configItem))
-					{
-						_configLookupCache[cacheKey] = configItem;
-					}
-
-					return result;
-				}
+				var group = moduleConfig.Groups.FirstOrDefault(g => g.Key == groupName);
+				return group.Value?.Items.ContainsKey(configName) ?? false;
 			}
 			return false;
 		}
 
 		public static T GetConfigValue<T>(string callerModule, string groupName, string configName) where T : notnull
 		{
-			string cacheKey = $"{callerModule}:{groupName}:{configName}";
-
-			if (_configLookupCache.TryGetValue(cacheKey, out var cachedItem))
-			{
-				try
-				{
-					return ConvertValue<T>(cachedItem.CurrentValue);
-				}
-				catch (Exception)
-				{
-					_configLookupCache.TryRemove(cacheKey, out _);
-				}
-			}
-
 			if (_moduleConfigs.TryGetValue(callerModule, out var moduleConfig))
 			{
 				var (found, value) = TryGetConfigValue<T>(moduleConfig, groupName, configName, callerModule);
@@ -417,16 +289,8 @@ namespace Zenith
 
 		private static (bool found, T value) TryGetConfigValue<T>(ModuleConfig config, string groupName, string configName, string callerModule, bool checkGlobalOnly = false) where T : notnull
 		{
-			if (!config.Groups.TryGetValue(groupName, out var group))
-			{
-				return (false, default!);
-			}
-
-			if (!group.Items.TryGetValue(configName, out var configItem))
-			{
-				return (false, default!);
-			}
-
+			var group = config.Groups.FirstOrDefault(g => g.Key == groupName);
+			var configItem = group.Value?.Items.GetValueOrDefault(configName);
 			if (configItem != null)
 			{
 				if (checkGlobalOnly && !configItem.Flags.HasFlag(ConfigFlag.Global))
@@ -434,28 +298,64 @@ namespace Zenith
 					Logger.LogWarning($"Config '{groupName}.{configName}' not allowed to be accessed globally");
 					return (false, default!);
 				}
-
 				if (callerModule != CoreModuleName && callerModule != config.ModuleName && !configItem.Flags.HasFlag(ConfigFlag.Global))
 				{
 					Logger.LogWarning($"Attempt to access non-global config '{groupName}.{configName}' from module '{callerModule}'");
 					return (false, default!);
 				}
-
 				if (configItem.CurrentValue == null)
 				{
 					Logger.LogWarning($"Config '{groupName}.{configName}' has a null value for module '{config.ModuleName}'");
 					throw new InvalidOperationException($"Configuration '{groupName}.{configName}' has null value for module '{config.ModuleName}'");
 				}
-
 				try
 				{
-					if (!checkGlobalOnly)
+					if (typeof(T) == typeof(string) && configItem.CurrentValue is string currentString && string.IsNullOrEmpty(currentString))
 					{
-						var cacheKey = $"{callerModule}:{groupName}:{configName}";
-						_configLookupCache.TryAdd(cacheKey, configItem);
+						return (true, (T)(object)"");
 					}
-
-					return (true, ConvertValue<T>(configItem.CurrentValue));
+					if (typeof(T) == typeof(List<string>) && configItem.CurrentValue is List<object> objectList)
+					{
+						var stringList = objectList.Select(o => o.ToString() ?? string.Empty).ToList();
+						return (true, (T)(object)stringList);
+					}
+					if (typeof(T) == typeof(List<int>) && configItem.CurrentValue is List<object> intObjectList)
+					{
+						var intList = intObjectList.Select(o => Convert.ToInt32(o, CultureInfo.InvariantCulture)).ToList();
+						return (true, (T)(object)intList);
+					}
+					if (typeof(T) == typeof(List<double>) && configItem.CurrentValue is List<object> doubleObjectList)
+					{
+						var doubleList = doubleObjectList.Select(o => Convert.ToDouble(o, CultureInfo.InvariantCulture)).ToList();
+						return (true, (T)(object)doubleList);
+					}
+					if (typeof(T) == typeof(List<float>) && configItem.CurrentValue is List<object> floatObjectList)
+					{
+						var floatList = floatObjectList.Select(o => Convert.ToSingle(o, CultureInfo.InvariantCulture)).ToList();
+						return (true, (T)(object)floatList);
+					}
+					if (typeof(T) == typeof(List<decimal>) && configItem.CurrentValue is List<object> decimalObjectList)
+					{
+						var decimalList = decimalObjectList.Select(o => Convert.ToDecimal(o, CultureInfo.InvariantCulture)).ToList();
+						return (true, (T)(object)decimalList);
+					}
+					if (typeof(T) == typeof(double) && configItem.CurrentValue is object doubleValue)
+					{
+						return (true, (T)(object)Convert.ToDouble(doubleValue, CultureInfo.InvariantCulture));
+					}
+					if (typeof(T) == typeof(float) && configItem.CurrentValue is object floatValue)
+					{
+						return (true, (T)(object)Convert.ToSingle(floatValue, CultureInfo.InvariantCulture));
+					}
+					if (typeof(T) == typeof(decimal) && configItem.CurrentValue is object decimalValue)
+					{
+						return (true, (T)(object)Convert.ToDecimal(decimalValue, CultureInfo.InvariantCulture));
+					}
+					if (typeof(T).IsPrimitive || typeof(T) == typeof(decimal))
+					{
+						return (true, (T)Convert.ChangeType(configItem.CurrentValue, typeof(T), CultureInfo.InvariantCulture));
+					}
+					return (true, (T)Convert.ChangeType(configItem.CurrentValue, typeof(T)));
 				}
 				catch (InvalidCastException ex)
 				{
@@ -468,71 +368,7 @@ namespace Zenith
 					throw;
 				}
 			}
-
 			return (false, default!);
-		}
-
-		private static T ConvertValue<T>(object value) where T : notnull
-		{
-			Type targetType = typeof(T);
-			Type sourceType = value.GetType();
-
-			if (sourceType == targetType)
-			{
-				return (T)value;
-			}
-
-			if (targetType == typeof(string) && value is string currentString && string.IsNullOrEmpty(currentString))
-			{
-				return (T)(object)"";
-			}
-
-			if (targetType == typeof(List<string>) && value is List<object> objectList)
-			{
-				var stringList = objectList.Select(o => o.ToString() ?? string.Empty).ToList();
-				return (T)(object)stringList;
-			}
-
-			if (targetType == typeof(List<int>) && value is List<object> intObjectList)
-			{
-				var intList = intObjectList.Select(o => Convert.ToInt32(o, CultureInfo.InvariantCulture)).ToList();
-				return (T)(object)intList;
-			}
-
-			if (targetType == typeof(List<double>) && value is List<object> doubleObjectList)
-			{
-				var doubleList = doubleObjectList.Select(o => Convert.ToDouble(o, CultureInfo.InvariantCulture)).ToList();
-				return (T)(object)doubleList;
-			}
-
-			if (targetType == typeof(List<float>) && value is List<object> floatObjectList)
-			{
-				var floatList = floatObjectList.Select(o => Convert.ToSingle(o, CultureInfo.InvariantCulture)).ToList();
-				return (T)(object)floatList;
-			}
-
-			if (targetType == typeof(List<decimal>) && value is List<object> decimalObjectList)
-			{
-				var decimalList = decimalObjectList.Select(o => Convert.ToDecimal(o, CultureInfo.InvariantCulture)).ToList();
-				return (T)(object)decimalList;
-			}
-
-			var key = (sourceType, targetType);
-			if (_typeConverterCache.TryGetValue(key, out var converter))
-			{
-				return (T)converter(value);
-			}
-
-			if (targetType.IsPrimitive || targetType == typeof(decimal))
-			{
-				var result = (T)Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
-
-				_typeConverterCache.TryAdd(key, v => Convert.ChangeType(v, targetType, CultureInfo.InvariantCulture));
-
-				return result;
-			}
-
-			return (T)Convert.ChangeType(value, targetType);
 		}
 
 		public static void SetConfigValue<T>(string callerModule, string groupName, string configName, T value) where T : notnull
@@ -561,15 +397,8 @@ namespace Zenith
 
 		private static bool TrySetConfigValue<T>(ModuleConfig moduleConfig, string groupName, string configName, T value, string callerModule, bool checkGlobalOnly = false) where T : notnull
 		{
-			if (!moduleConfig.Groups.TryGetValue(groupName, out var group))
-			{
-				return false;
-			}
-
-			if (!group.Items.TryGetValue(configName, out var config))
-			{
-				return false;
-			}
+			var group = moduleConfig.Groups.FirstOrDefault(g => g.Key == groupName);
+			var config = group.Value?.Items.GetValueOrDefault(configName);
 
 			if (config != null)
 			{
@@ -598,48 +427,17 @@ namespace Zenith
 					}
 				}
 
-				if (!value.Equals(config.CurrentValue))
+				config.CurrentValue = value;
+
+				if (GlobalChangeTracking || config.Flags.HasFlag(ConfigFlag.Global) || callerModule == CoreModuleName)
 				{
-					config.CurrentValue = value;
-
-					InvalidateConfigCache(moduleConfig.ModuleName, groupName, configName);
-
-					// Trigger the OnZenithConfigChanged event
-					Plugin._moduleServices?.InvokeZenithConfigChanged(moduleConfig.ModuleName, groupName, configName, value);
-
-					if (GlobalChangeTracking || config.Flags.HasFlag(ConfigFlag.Global) || callerModule == CoreModuleName)
-					{
-						ScheduleModuleConfigSave(moduleConfig.ModuleName);
-					}
+					SaveModuleConfig(moduleConfig.ModuleName);
 				}
 
 				return true;
 			}
 
 			return false;
-		}
-
-		private static void ScheduleModuleConfigSave(string moduleName)
-		{
-			if (_pendingSaveTimers.TryGetValue(moduleName, out var existingTimer))
-			{
-				existingTimer.Change(_saveDelay, Timeout.InfiniteTimeSpan);
-			}
-			else
-			{
-				var timer = new Timer(SaveModuleConfigCallback, moduleName, _saveDelay, Timeout.InfiniteTimeSpan);
-				_pendingSaveTimers[moduleName] = timer;
-			}
-		}
-
-		private static void SaveModuleConfigCallback(object? state)
-		{
-			var moduleName = (string)state!;
-
-			_pendingSaveTimers.TryRemove(moduleName, out var timer);
-			timer?.Dispose();
-
-			SaveModuleConfig(moduleName);
 		}
 
 		private static ModuleConfig LoadModuleConfig(string moduleName)
@@ -654,8 +452,13 @@ namespace Zenith
 			{
 				try
 				{
+					var deserializer = new DeserializerBuilder()
+						.WithNamingConvention(CamelCaseNamingConvention.Instance)
+						.IgnoreUnmatchedProperties()
+						.Build();
+
 					var yaml = File.ReadAllText(filePath);
-					var loadedConfig = _deserializer.Value.Deserialize<ModuleConfig>(yaml);
+					var loadedConfig = deserializer.Deserialize<ModuleConfig>(yaml);
 
 					if (loadedConfig != null)
 					{
@@ -697,13 +500,19 @@ namespace Zenith
 			{
 				CleanupUnusedConfigs(moduleName);
 
+				var serializer = new SerializerBuilder()
+					.WithNamingConvention(CamelCaseNamingConvention.Instance)
+					.DisableAliases()
+					.ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
+					.Build();
+
 				var header = $@"# This file was generated by Zenith Core.
 #
 # Developer: K4ryuu @ KitsuneLab
 # Module: {moduleName}
 #";
 
-				var yaml = header + _serializer.Value.Serialize(moduleConfig);
+				var yaml = header + serializer.Serialize(moduleConfig);
 
 				string filePath = moduleName == CoreModuleName
 					? Path.Combine(_baseConfigDirectory, "core.yaml")

@@ -17,8 +17,7 @@ public sealed partial class Plugin : BasePlugin
 	public void OnRanksCommand(CCSPlayerController? player, CommandInfo info)
 	{
 		if (player == null) return;
-		var playerServices = _playerServicesCapability.GetZenithPlayer(player);
-		if (playerServices == null)
+		if (!_playerCache.TryGetValue(player!, out var playerServices))
 		{
 			info.ReplyToCommand($" {Localizer.ForPlayer(player, "k4.general.prefix")} {Localizer.ForPlayer(player, "k4.general.loading")}");
 			return;
@@ -38,12 +37,15 @@ public sealed partial class Plugin : BasePlugin
 		List<MenuItem> items = [];
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = ZenithString.FormatNumber(rank.Point);
+			string formattedPoints = FormatPoints(rank.Point);
 			string rankInfo = $"<font color='{rank.HexColor}'>{rank.Name}</font>: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			items.Add(new MenuItem(MenuItemType.Button, [new MenuValue(rankInfo)]));
 		}
-
-		Menu.ShowScrollableMenu(player.Controller, Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"), items, null, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && player.GetSetting<bool>("FreezeInMenu", "K4-Zenith"), 5, disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));
+		Menu.ShowScrollableMenu(player.Controller, Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"), items, (buttons, menu, selected) =>
+		{
+			// No action needed when an item is selected, as we're just displaying information
+			// Can be extended later if needed
+		}, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && player.GetSetting<bool>("FreezeInMenu", "K4-Zenith"), 5, disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));
 	}
 
 	private void ShowChatRanksList(IPlayerServices player)
@@ -51,18 +53,16 @@ public sealed partial class Plugin : BasePlugin
 		ChatMenu menu = new ChatMenu(Localizer.ForPlayer(player.Controller, "k4.ranks.list.title"));
 		foreach (var rank in Ranks)
 		{
-			string formattedPoints = ZenithString.FormatNumber(rank.Point);
+			string formattedPoints = FormatPoints(rank.Point);
 			string rankInfo = $"{rank.ChatColor}{rank.Name}{ChatColors.Default}: {formattedPoints} {Localizer.ForPlayer(player.Controller, "k4.ranks.points")}";
 			menu.AddMenuOption(rankInfo, (p, o) => { });
 		}
-
 		MenuManager.OpenChatMenu(player.Controller, menu);
 	}
 
 	public void OnRankCommand(CCSPlayerController? player, CommandInfo info)
 	{
-		var playerServices = _playerServicesCapability.GetZenithPlayer(player);
-		if (playerServices == null)
+		if (!_playerCache.TryGetValue(player!, out var playerServices))
 		{
 			info.ReplyToCommand($" {Localizer.ForPlayer(player, "k4.general.prefix")} {Localizer.ForPlayer(player, "k4.general.loading")}");
 			return;
@@ -120,8 +120,7 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var target in targets)
 		{
-			var zenithPlayer = _playerServicesCapability.GetZenithPlayer(target);
-			if (zenithPlayer != null)
+			if (_playerCache.TryGetValue(target, out var zenithPlayer))
 			{
 				var (message, logMessage) = action(zenithPlayer, amount);
 				if (player != null)
@@ -146,20 +145,21 @@ public sealed partial class Plugin : BasePlugin
 		Task.Run(async () =>
 		{
 			long points = await _moduleServices.GetOfflineData<long>(steamID, "storage", "Points");
-			long maxPoints = GetCachedConfigValue<long>("Settings", "MaxPoints");
-
 			switch (operatation)
 			{
 				case '+':
-					points = Math.Clamp(points + amount, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
+					points += amount;
 					break;
 				case '-':
-					points = Math.Max(0, points - amount);
+					points -= amount;
 					break;
 				case '=':
-					points = Math.Clamp(amount, 0, maxPoints > 0 ? maxPoints : long.MaxValue);
+					points = amount;
 					break;
 			}
+
+			if (points < 0)
+				points = 0;
 
 			string rank = DetermineRanks(points).CurrentRank?.Name ?? "k4.phrases.rank.none";
 			await _moduleServices.SetOfflineData(steamID, "storage", new Dictionary<string, object?> { { "Points", points }, { "Rank", rank } });
@@ -281,7 +281,7 @@ public sealed partial class Plugin : BasePlugin
 			var onlinePlayer = Utilities.GetPlayerFromSteamId(steamId);
 			if (onlinePlayer != null)
 			{
-				var zenithPlayer = _playerServicesCapability.GetZenithPlayer(onlinePlayer);
+				var zenithPlayer = GetZenithPlayer(onlinePlayer);
 				if (zenithPlayer != null)
 				{
 					long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");

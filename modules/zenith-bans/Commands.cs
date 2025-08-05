@@ -6,8 +6,6 @@ using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Commands.Targeting;
 using CounterStrikeSharp.API.Modules.Entities;
-using CounterStrikeSharp.API.Modules.Menu;
-using CounterStrikeSharp.API.Modules.Utils;
 using Menu;
 using Menu.Enums;
 using Microsoft.Extensions.Logging;
@@ -366,18 +364,6 @@ namespace Zenith_Bans
 				return;
 			}
 
-			if (_coreAccessor.GetValue<bool>("Core", "CenterMenuMode"))
-			{
-				ShowCenterOfflinePlayerMenu(controller);
-			}
-			else
-			{
-				ShowChatOfflinePlayerMenu(controller);
-			}
-		}
-
-		private void ShowCenterOfflinePlayerMenu(CCSPlayerController controller)
-		{
 			List<MenuItem> items = [];
 			var playerMap = new Dictionary<int, DisconnectedPlayer>();
 
@@ -410,32 +396,6 @@ namespace Zenith_Bans
 						break;
 				}
 			}, false, _coreAccessor.GetValue<bool>("Core", "FreezeInMenu") && (GetZenithPlayer(controller)?.GetSetting<bool>("FreezeInMenu", "K4-Zenith") ?? true), disableDeveloper: !_coreAccessor.GetValue<bool>("Core", "ShowDevelopers"));
-		}
-
-		private void ShowChatOfflinePlayerMenu(CCSPlayerController controller)
-		{
-			ChatMenu playerMenu = new ChatMenu(Localizer.ForPlayer(controller, "k4.banoffline.menu-title"));
-
-			foreach (var player in _disconnectedPlayers)
-			{
-				string timeSinceDisconnect = (DateTime.Now - player.DisconnectedAt).TotalMinutes.ToString("F0");
-				string displayInfo = Localizer.ForPlayer(controller, "k4.banoffline.player-info",
-					player.PlayerName,
-					player.SteamId,
-					Localizer.ForPlayer(controller, "k4.general.time-ago", timeSinceDisconnect));
-
-				playerMenu.AddMenuOption($"{ChatColors.Gold}{displayInfo}", (c, o) =>
-				{
-					StartOfflineBanProcess(controller, new SteamID(player.SteamId));
-				});
-			}
-
-			if (playerMenu.MenuOptions.Count == 0)
-			{
-				playerMenu.AddMenuOption($"{ChatColors.LightRed}{Localizer.ForPlayer(controller, "k4.banoffline.no-disconnected-players")}", (p, o) => { }, true);
-			}
-
-			MenuManager.OpenChatMenu(controller, playerMenu);
 		}
 
 		private void StartOfflineBanProcess(CCSPlayerController? controller, SteamID steamId)

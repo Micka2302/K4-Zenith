@@ -90,11 +90,11 @@ namespace Zenith_Bans
 				{
 					if (target != null && target.IsValid && !target.IsBot && !target.IsHLTV)
 					{
-						if (ShouldShowActivity(player.SteamID, target, true, false))
+						if (ShouldShowActivity(player.SteamID, target, true))
 						{
 							_moduleServices?.PrintForPlayer(target, Localizer.ForPlayer(target, "k4.chat.announce", player.PlayerName, message), false);
 						}
-						else if (ShouldShowActivity(player.SteamID, target, false, false))
+						else if (ShouldShowActivity(player.SteamID, target, false))
 						{
 							_moduleServices?.PrintForPlayer(target, Localizer.ForPlayer(target, "k4.chat.announce", adminName, message), false);
 						}
