@@ -213,7 +213,7 @@ namespace Zenith
 			if (player != null && !AdminManager.PlayerHasPermissions(controller, permission) &&
 				!AdminManager.PlayerHasPermissions(controller, "@zenith/root") &&
 				!AdminManager.PlayerHasPermissions(controller, "@css/root") &&
-				(!AdminManager.PlayerHasCommandOverride(controller, info.GetArg(0)) || AdminManager.GetPlayerCommandOverrideState(controller, info.GetArg(0)) == false))
+				!AdminManager.GetPlayerCommandOverrideState(controller, info.GetArg(0)) == false)
 			{
 				info.ReplyToCommand($" {Localizer.ForPlayer(controller, "k4.general.prefix")} {Localizer.ForPlayer(controller, "k4.command.no-permission")}");
 				return false;
