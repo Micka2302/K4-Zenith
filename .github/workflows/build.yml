@@ -21,9 +21,11 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore dependencies
-        run: dotnet restore K4-Zenith.sln
+        run: dotnet restore ./K4-Zenith.sln
+        working-directory: ${{ github.workspace }}
 
       - name: Build and package Zenith
+        working-directory: ${{ github.workspace }}
         shell: bash
         run: |
           set -eo pipefail
