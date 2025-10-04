@@ -1,4 +1,5 @@
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Modules.Admin;
 using Microsoft.Extensions.Logging;
 using ZenithAPI;
 
@@ -31,6 +32,7 @@ namespace Zenith
 			RegisterModuleConfig("Modular", "PlayerChatRankFormat", "The format for displaying the player rank in chat. css_placeholderlist for list", "{rank_color}[{rank}] ");
 			RegisterModuleConfig("Modular", "JoinMessage", "The message to display when a player joins the server. You can use placeholders here from css_placeholderlist. Leave empty to disable.", "{gold}{name} ({steamid}) {green}has joined to the server from {gold}{country_long}{green}!");
 			RegisterModuleConfig("Modular", "LeaveMessage", "The message to display when a player leaves the server. You can use placeholders here from css_placeholderlist. Leave empty to disable.", "{gold}{name} ({steamid}) {lightred}has left the server.");
+            RegisterModuleConfig("Modular", "JoinLeaveMessageImmunity", "Permission flag(s) that skip join/leave messages. Separate multiple entries with a comma.", "@css/generic", ConfigFlag.Global);
 			RegisterModuleConfig("Modular", "OverridePlugins", "If you have any plugin that hides you Zenith menu, handle events agressively and blocks Zenith add to this list the folder name of that plugin. Zenith is going to force them to be lower priority than Zenith on some actions.", new List<string> { "SharpTimer" });
 
 			// Core settings
@@ -58,5 +60,36 @@ namespace Zenith
 		{
 			_coreAccessor.SetValue(groupName, configName, value);
 		}
+
+		private static readonly char[] JoinLeaveImmunitySeparators = { ',', ';', ' ' };
+
+		public bool HasJoinLeaveMessageImmunity(CCSPlayerController? controller)
+		{
+			if (controller == null || !controller.IsValid || controller.IsBot || controller.IsHLTV)
+				return false;
+
+			var rawFlags = GetCoreConfig<string>("Modular", "JoinLeaveMessageImmunity");
+			if (string.IsNullOrWhiteSpace(rawFlags))
+				return false;
+
+			foreach (var flag in rawFlags.Split(JoinLeaveImmunitySeparators, System.StringSplitOptions.RemoveEmptyEntries))
+			{
+				var trimmedFlag = flag.Trim();
+				if (string.IsNullOrEmpty(trimmedFlag))
+					continue;
+
+				if (AdminManager.PlayerHasPermissions(controller, trimmedFlag))
+					return true;
+			}
+
+			return false;
+		}
 	}
 }
+
+
+
+
+
+
+

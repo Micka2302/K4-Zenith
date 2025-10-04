@@ -5,34 +5,29 @@ namespace Zenith.Migrations
 	[Migration(202508051)]
 	public class Default_IncreaseNameFieldSize : Migration
 	{
+		private const string PlayerSettingsTable = "zenith_player_settings";
+		private const string PlayerStorageTable = "zenith_player_storage";
+		private const string Utf8Mb4Column255 = "VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+		private const string Utf8Mb4Column64 = "VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+
 		public override void Up()
 		{
-			if (Schema.Table("zenith_player_settings").Exists())
-			{
-				Alter.Table("zenith_player_settings")
-					.AlterColumn("name").AsString(255).Nullable();
-			}
-
-			if (Schema.Table("zenith_player_storage").Exists())
-			{
-				Alter.Table("zenith_player_storage")
-					.AlterColumn("name").AsString(255).Nullable();
-			}
+			AlterNameColumn(PlayerSettingsTable, Utf8Mb4Column255);
+			AlterNameColumn(PlayerStorageTable, Utf8Mb4Column255);
 		}
 
 		public override void Down()
 		{
-			if (Schema.Table("zenith_player_settings").Exists())
-			{
-				Alter.Table("zenith_player_settings")
-					.AlterColumn("name").AsString(64).Nullable();
-			}
+			AlterNameColumn(PlayerSettingsTable, Utf8Mb4Column64);
+			AlterNameColumn(PlayerStorageTable, Utf8Mb4Column64);
+		}
 
-			if (Schema.Table("zenith_player_storage").Exists())
-			{
-				Alter.Table("zenith_player_storage")
-					.AlterColumn("name").AsString(64).Nullable();
-			}
+		private void AlterNameColumn(string table, string columnDefinition)
+		{
+			if (!Schema.Table(table).Exists())
+				return;
+
+			Execute.Sql($"ALTER TABLE `{table}` MODIFY COLUMN `name` {columnDefinition} NULL;");
 		}
 	}
 }

@@ -79,13 +79,17 @@ namespace Zenith
 		[GameEventHandler(HookMode.Post)]
 		public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
 		{
-			var player = Player.Find(@event.Userid);
+			var controller = @event.Userid;
+			var player = Player.Find(controller);
 			if (player == null)
 				return HookResult.Continue;
 
-			string joinFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
-			if (!string.IsNullOrEmpty(joinFormat))
-				_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(ReplacePlaceholders(player.Controller, joinFormat)), false);
+			var messageController = controller ?? player.Controller;
+			string leaveFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
+			if (!string.IsNullOrEmpty(leaveFormat) && messageController != null && !HasJoinLeaveMessageImmunity(messageController))
+			{
+				_moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(ReplacePlaceholders(messageController, leaveFormat)), false);
+			}
 
 			player.Dispose();
 

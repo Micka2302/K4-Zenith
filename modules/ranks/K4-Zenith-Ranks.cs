@@ -292,9 +292,17 @@ public sealed partial class Plugin : BasePlugin
 	private string GetPlayerPoints(CCSPlayerController p)
 	{
 		if (_playerCache.TryGetValue(p, out var player))
+		{
 			return player.GetStorage<long>("Points").ToString();
+		}
 
-		return "0";
+		var services = GetZenithPlayer(p);
+		if (services != null)
+		{
+			return services.GetStorage<long>("Points").ToString();
+		}
+
+		return p.Score.ToString();
 	}
 
 	private class PlayerRankInfo
