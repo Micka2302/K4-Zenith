@@ -19,12 +19,15 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="ZenithAPI">
-      <HintPath>$(ProjectDir)\..\..\src-api\bin\K4-ZenithAPI\K4-ZenithAPI.dll</HintPath>
+    <ProjectReference Include="..\..\src-api\K4-ZenithAPI.csproj">
       <Private>false</Private>
-    </Reference>
+    </ProjectReference>
+    <ProjectReference Include="..\\..\\external-dlls\\Kitsune-Menu-OLD\\KitsuneMenu.csproj">
+      <Private>false</Private>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Update="$(ProjectDir)\lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+

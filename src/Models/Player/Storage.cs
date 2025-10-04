@@ -303,10 +303,12 @@ public sealed partial class Player
 
 				if (_plugin._pluginServerPlaceholders.IsEmpty)
 					return;
-
+				var joiner = Controller;
 				string joinFormat = _plugin.GetCoreConfig<string>("Modular", "JoinMessage");
-				if (!string.IsNullOrEmpty(joinFormat))
-					_plugin._moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(_plugin.ReplacePlaceholders(Controller, joinFormat)), false);
+				if (!string.IsNullOrEmpty(joinFormat) && joiner != null && !_plugin.HasJoinLeaveMessageImmunity(joiner))
+				{
+					_plugin._moduleServices?.PrintForAll(StringExtensions.ReplaceColorTags(_plugin.ReplacePlaceholders(joiner, joinFormat)), false);
+				}
 			});
 		}
 		catch (Exception ex)
@@ -921,3 +923,4 @@ public sealed partial class Player
 		return default;
 	}
 }
+
