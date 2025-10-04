@@ -1,0 +1,38 @@
+name: Build Zenith
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore K4-Zenith.sln
+
+      - name: Build and package Zenith
+        shell: bash
+        run: |
+          set -eo pipefail
+          chmod +x ./deploy.sh
+          ./deploy.sh
+          zip -r Zenith.zip Zenith
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zenith
+          path: Zenith.zip
