@@ -190,7 +190,17 @@ public sealed partial class Player
 	{
 		if (tag == null)
 		{
-			_nameTag = null;
+			if (priority < _clanTag?.Item2)
+				return;
+
+			_clanTag = null;
+
+			if (Controller != null)
+			{
+				Controller.Clan = string.Empty;
+				Utilities.SetStateChanged(Controller, "CCSPlayerController", "m_szClan");
+			}
+
 			return;
 		}
 
