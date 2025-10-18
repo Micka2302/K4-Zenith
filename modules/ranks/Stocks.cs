@@ -31,7 +31,6 @@ public sealed partial class Plugin : BasePlugin
 
 		var vipFlags = GetCachedConfigValue<List<string>>("Settings", "VIPFlags");
 		var vipMultiplier = (decimal)GetCachedConfigValue<double>("Settings", "VipMultiplier");
-		bool scoreboardSync = GetCachedConfigValue<bool>("Settings", "ScoreboardScoreSync");
 		bool showSummaries = GetCachedConfigValue<bool>("Settings", "PointSummaries");
 
 		var playerData = GetOrUpdatePlayerRankInfo(player);
@@ -42,18 +41,18 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		long currentPoints = player.GetStorage<long>("Points");
-		long newPoints = Math.Max(0, currentPoints + points);
+		long newPoints = ClampPointsWithinBounds(currentPoints + points);
+		long delta = newPoints - currentPoints;
 
-		if (currentPoints == newPoints)
+		if (delta == 0)
 			return;
+
+		points = delta > int.MaxValue ? int.MaxValue : delta < int.MinValue ? int.MinValue : (int)delta;
 
 		player.SetStorage("Points", newPoints);
 		playerData.LastUpdate = DateTime.Now;
 
-		if (scoreboardSync && player.Controller.Score != (int)newPoints)
-		{
-			player.Controller.Score = (int)newPoints;
-		}
+		SyncScoreboardScore(player, newPoints);
 
 		UpdatePlayerRank(player, playerData, newPoints);
 
@@ -202,6 +201,36 @@ public sealed partial class Plugin : BasePlugin
 		else
 		{
 			return points.ToString();
+		}
+	}
+
+	private long ClampPointsWithinBounds(long points)
+	{
+		long maxPoints = GetCachedConfigValue<int>("Settings", "RankMaxPoints");
+		return ClampPointsWithinBounds(points, maxPoints);
+	}
+
+	private static long ClampPointsWithinBounds(long points, long maxPoints)
+	{
+		if (points < 0)
+			points = 0;
+
+		if (maxPoints > 0 && points > maxPoints)
+			points = maxPoints;
+
+		return points;
+	}
+
+	private void SyncScoreboardScore(IPlayerServices player, long points)
+	{
+		if (!GetCachedConfigValue<bool>("Settings", "ScoreboardScoreSync"))
+			return;
+
+		int scoreboardPoints = points > int.MaxValue ? int.MaxValue : (int)points;
+
+		if (player.Controller.Score != scoreboardPoints)
+		{
+			player.Controller.Score = scoreboardPoints;
 		}
 	}
 }

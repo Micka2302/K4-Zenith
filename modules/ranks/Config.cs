@@ -33,6 +33,7 @@ public sealed partial class Plugin : BasePlugin
 		_moduleServices.RegisterModuleConfig("Settings", "ScoreboardMode", "Scoreboard mode (1 - premier, 2 - competitive, 3 - wingman, 4 - danger zone, 0 - custom)", 1);
 		_moduleServices.RegisterModuleConfig("Settings", "RankBase", "Base rank value for custom ranks", 0);
 		_moduleServices.RegisterModuleConfig("Settings", "RankMax", "Maximum rank value for custom ranks", 0);
+		_moduleServices.RegisterModuleConfig("Settings", "RankMaxPoints", "Maximum points a player can have", 0);
 		_moduleServices.RegisterModuleConfig("Settings", "RankMargin", "Rank margin value for custom ranks", 0);
 		_moduleServices.RegisterModuleConfig("Settings", "ExtendedDeathMessages", "Use extended death messages including enemy name and points", true);
 		_moduleServices.RegisterModuleConfig("Settings", "VIPFlags", "VIP flags for multipliers", new List<string> { "@zenith-ranks/vip" });
