@@ -2,6 +2,8 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.UserMessages;
+using Microsoft.Extensions.Logging;
 using ZenithAPI;
 
 namespace Zenith_Ranks;
@@ -10,6 +12,8 @@ public sealed partial class Plugin : BasePlugin
 {
 	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
 	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
+	private readonly Dictionary<CCSPlayerController, bool> _scoreboardButtonStates = [];
+	private const int ServerRankRevealUserMessageId = 350;
 
 	public IEnumerable<IPlayerServices> GetValidPlayers()
 	{
@@ -167,10 +171,81 @@ public sealed partial class Plugin : BasePlugin
 		return (int)Math.Round(pointsRatio * basePoints);
 	}
 
-	private void UpdateScoreboards()
+	// Track +showscores to push CCSUsrMsg_ServerRankRevealAll immediately and prevent scoreboard crashes.
+
+	private void HandleScoreboardRankReveal(CCSPlayerController controller)
+	{
+		if (controller == null)
+			return;
+
+		if (!controller.IsValid)
+		{
+			_scoreboardButtonStates.Remove(controller);
+			return;
+		}
+
+		bool isPressingScoreboard = ((PlayerButtons)controller.Buttons & PlayerButtons.Scoreboard) != 0;
+
+		if (_scoreboardButtonStates.TryGetValue(controller, out bool wasPressing))
+		{
+			if (isPressingScoreboard && !wasPressing)
+			{
+				SendServerRankReveal(controller);
+			}
+
+			_scoreboardButtonStates[controller] = isPressingScoreboard;
+		}
+		else
+		{
+			_scoreboardButtonStates[controller] = isPressingScoreboard;
+
+			if (isPressingScoreboard)
+			{
+				SendServerRankReveal(controller);
+			}
+		}
+	}
+
+	private void SendServerRankReveal(CCSPlayerController controller)
+	{
+		try
+		{
+			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			message.Recipients.Add(controller);
+			message.Send();
+		}
+		catch (Exception ex)
+		{
+			Logger.LogDebug("Failed to send rank reveal message: {Message}", ex.Message);
+		}
+	}
+
+	private void BroadcastServerRankReveal()
 	{
 		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
 			return;
+
+		try
+		{
+			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			message.Recipients.AddAllPlayers();
+			message.Send();
+		}
+		catch (Exception ex)
+		{
+			Logger.LogDebug("Failed to broadcast rank reveal message: {Message}", ex.Message);
+		}
+	}
+
+	private void UpdateScoreboards()
+	{
+		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
+		{
+			if (_scoreboardButtonStates.Count > 0)
+				_scoreboardButtonStates.Clear();
+
+			return;
+		}
 
 		int mode = GetCachedConfigValue<int>("Settings", "ScoreboardMode");
 		int rankMax = GetCachedConfigValue<int>("Settings", "RankMax");
@@ -179,6 +254,8 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var player in GetValidPlayers())
 		{
+			HandleScoreboardRankReveal(player.Controller);
+
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);

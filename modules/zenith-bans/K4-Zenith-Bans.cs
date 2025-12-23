@@ -10,7 +10,7 @@ using ZenithAPI;
 
 namespace Zenith_Bans;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public sealed partial class Plugin : BasePlugin
 {
 	private IModuleConfigAccessor _coreAccessor = null!;
@@ -26,7 +26,7 @@ public sealed partial class Plugin : BasePlugin
 	private IZenithEvents? _zenithEvents;
 	private IModuleServices? _moduleServices;
 
-	public KitsuneMenu Menu { get; private set; } = null!;
+	public Menu.KitsuneMenu Menu { get; private set; } = null!;
 	private string _serverIp = "all";
 	private readonly HttpClient _httpClient = new HttpClient();
 	private readonly List<DisconnectedPlayer> _disconnectedPlayers = [];
@@ -83,7 +83,7 @@ public sealed partial class Plugin : BasePlugin
 			});
 		});
 
-		Menu = new KitsuneMenu(this);
+		Menu = new Menu.KitsuneMenu(this);
 
 		_coreAccessor = _moduleServices.GetModuleConfigAccessor();
 

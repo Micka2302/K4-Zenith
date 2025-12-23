@@ -17,7 +17,7 @@ using CounterStrikeSharp.API.Core.Translations;
 
 namespace Zenith_Stats;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public class Plugin : BasePlugin
 {
 	public CCSGameRules? GameRules = null;
@@ -28,7 +28,7 @@ public class Plugin : BasePlugin
 	public override string ModuleAuthor => "K4ryuu @ KitsuneLab";
 	public override string ModuleVersion => "1.0.8";
 
-	public KitsuneMenu Menu { get; private set; } = null!;
+	public Menu.KitsuneMenu Menu { get; private set; } = null!;
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 
@@ -61,7 +61,7 @@ public class Plugin : BasePlugin
 			return;
 		}
 
-		Menu = new KitsuneMenu(this);
+		Menu = new Menu.KitsuneMenu(this);
 		_coreAccessor = _moduleServices.GetModuleConfigAccessor();
 
 		RegisterModuleConfigs();

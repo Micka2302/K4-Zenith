@@ -12,7 +12,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CounterStrikeSharp.API" Version="*">
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.352">
       <PrivateAssets>none</PrivateAssets>
       <ExcludeAssets>runtime</ExcludeAssets>
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -23,7 +23,7 @@
     <ProjectReference Include="..\..\src-api\K4-ZenithAPI.csproj">
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="..\\..\\external-dlls\\Kitsune-Menu-OLD\\KitsuneMenu.csproj">
+    <ProjectReference Include="..\\..\\KitsuneMenu\\src\\KitsuneMenu.csproj">
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>

@@ -11,7 +11,7 @@ using CounterStrikeSharp.API.Core.Translations;
 
 namespace Zenith_TimeStats;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public class Plugin : BasePlugin
 {
 	private IModuleConfigAccessor _coreAccessor = null!;

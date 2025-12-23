@@ -17,7 +17,7 @@ using CounterStrikeSharp.API.Core.Translations;
 
 namespace Zenith_CustomTags;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public class Plugin : BasePlugin
 {
 	private const string MODULE_ID = "CustomTags";
@@ -38,7 +38,7 @@ public class Plugin : BasePlugin
 	private readonly Dictionary<CCSPlayerController, CounterStrikeSharp.API.Modules.Timers.Timer> _removalTimers = [];
 	private readonly Dictionary<CCSPlayerController, float> _pendingScoreboardRefreshes = [];
 
-	public KitsuneMenu Menu { get; private set; } = null!;
+	public Menu.KitsuneMenu Menu { get; private set; } = null!;
 	public IModuleConfigAccessor _coreAccessor = null!;
 
 	private Dictionary<string, TagConfig>? _tagConfigs;
@@ -79,7 +79,7 @@ public class Plugin : BasePlugin
 			Logger.LogError("Failed to get Zenith event handler.");
 		}
 
-		Menu = new KitsuneMenu(this);
+		Menu = new Menu.KitsuneMenu(this);
 		_coreAccessor = _moduleServices.GetModuleConfigAccessor();
 
 		_moduleServices!.RegisterModuleStorage(new Dictionary<string, object?>

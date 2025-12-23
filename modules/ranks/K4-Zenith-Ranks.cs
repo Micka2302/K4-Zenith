@@ -14,7 +14,7 @@ using ZenithAPI;
 
 namespace Zenith_Ranks;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public sealed partial class Plugin : BasePlugin
 {
 	private const string MODULE_ID = "Ranks";
@@ -26,7 +26,7 @@ public sealed partial class Plugin : BasePlugin
 	private PlayerCapability<IPlayerServices>? _playerServicesCapability;
 	private PluginCapability<IModuleServices>? _moduleServicesCapability;
 	private DateTime _lastPlaytimeCheck = DateTime.Now;
-	public KitsuneMenu Menu { get; private set; } = null!;
+	public Menu.KitsuneMenu Menu { get; private set; } = null!;
 
 	public CCSGameRules? GameRules { get; private set; }
 	private IZenithEvents? _zenithEvents;
@@ -56,7 +56,7 @@ public sealed partial class Plugin : BasePlugin
 		SetupZenithEvents();
 		SetupGameRules(hotReload);
 
-		Menu = new KitsuneMenu(this);
+		Menu = new Menu.KitsuneMenu(this);
 		_coreAccessor = _moduleServices!.GetModuleConfigAccessor();
 
 		if (hotReload)
@@ -71,12 +71,8 @@ public sealed partial class Plugin : BasePlugin
 			}
 		}
 
-		AddTimer(5.0f, () =>
-		{
-			UserMessage message = UserMessage.FromId(350);
-			message.Recipients.AddAllPlayers();
-			message.Send();
-		}, TimerFlags.REPEAT);
+		AddTimer(5.0f, () => BroadcastServerRankReveal(), TimerFlags.REPEAT);
+		BroadcastServerRankReveal();
 
 		AddTimer((float)_playerCacheExpiration.TotalSeconds, () =>
 		{
@@ -236,6 +232,7 @@ public sealed partial class Plugin : BasePlugin
 		_playerRankCache.Remove(player.SteamID);
 		_playerCache.Remove(player);
 		_playerSpawned.Remove(player);
+		_scoreboardButtonStates.Remove(player);
 	}
 
 	private void OnZenithCoreUnload(bool hotReload)
@@ -252,6 +249,7 @@ public sealed partial class Plugin : BasePlugin
 
 	public override void Unload(bool hotReload)
 	{
+		_scoreboardButtonStates.Clear();
 		_moduleServicesCapability?.Get()?.DisposeModule(GetType().Assembly);
 	}
 
