@@ -1,5 +1,5 @@
 {
-  "k4.general.prefix": "{silver}- {gold}+ Zenith + {silver}- ",
+  "k4.general.prefix": "{darkred}[Absynthium - Rank]{white}",
 
   "k4.tag.all": "{white}[ALL] ",
   "k4.tag.dead": "{grey}[DEAD] ",
@@ -9,7 +9,7 @@
   "k4.tag.team.unassigned": "{white}[UNASSIGNED] ",
   "k4.tag.separator": "{white}: ",
 
-  "k4.command.help": "{silver}Expected Usage: {lime}!{0} {1}",
+  "k4.command.help": "{white}Expected Usage: {lime}!{0} {1}",
   "k4.command.no-permission": "{lightred}You do not have permission to use this command.",
   "k4.command.server-only": "{lightred}This command can only be used by the server.",
   "k4.command.client-only": "{lightred}This command can only be used by clients.",

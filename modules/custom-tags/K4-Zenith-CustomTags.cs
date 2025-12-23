@@ -12,11 +12,12 @@ using Menu;
 using Menu.Enums;
 using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Core.Translations;
 
 namespace Zenith_CustomTags;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public class Plugin : BasePlugin
 {
 	private const string MODULE_ID = "CustomTags";
@@ -35,8 +36,9 @@ public class Plugin : BasePlugin
 
 	private readonly Dictionary<CCSPlayerController, IPlayerServices> _playerCache = [];
 	private readonly Dictionary<CCSPlayerController, CounterStrikeSharp.API.Modules.Timers.Timer> _removalTimers = [];
+	private readonly Dictionary<CCSPlayerController, float> _pendingScoreboardRefreshes = [];
 
-	public KitsuneMenu Menu { get; private set; } = null!;
+	public Menu.KitsuneMenu Menu { get; private set; } = null!;
 	public IModuleConfigAccessor _coreAccessor = null!;
 
 	private Dictionary<string, TagConfig>? _tagConfigs;
@@ -77,7 +79,7 @@ public class Plugin : BasePlugin
 			Logger.LogError("Failed to get Zenith event handler.");
 		}
 
-		Menu = new KitsuneMenu(this);
+		Menu = new Menu.KitsuneMenu(this);
 		_coreAccessor = _moduleServices.GetModuleConfigAccessor();
 
 		_moduleServices!.RegisterModuleStorage(new Dictionary<string, object?>
@@ -89,6 +91,9 @@ public class Plugin : BasePlugin
 
 		EnsureConfigFileExists();
 		EnsurePredefinedConfigFileExists();
+
+		RegisterEventHandler<EventRoundStart>(OnRoundStart, HookMode.Post);
+		RegisterListener<Listeners.OnTick>(ProcessPendingTagRefreshes);
 
 		_moduleServices?.RegisterModuleCommands(["tags", "tag"], "Change player tag configuration", (player, info) =>
 		{
@@ -250,25 +255,27 @@ public class Plugin : BasePlugin
 			zenithPlayer.SetStorage("ChoosenTag", "Default");
 			ApplyTagConfig(player);
 			_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "customtags.applied.default"));
+			ScheduleTagRefresh(player);
 		}
 		else if (selectedConfigKey == "none")
 		{
 			zenithPlayer.SetStorage("ChoosenTag", "None");
 			ApplyNullConfig(zenithPlayer);
 			_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "customtags.applied.none"));
+			ScheduleTagRefresh(player);
 		}
 		else if (_predefinedConfigs?.TryGetValue(selectedConfigKey, out var selectedPredefinedConfig) == true)
 		{
 			zenithPlayer.SetStorage("ChoosenTag", selectedConfigKey);
 			ApplyConfig(zenithPlayer, selectedPredefinedConfig);
 			_moduleServices?.PrintForPlayer(player, Localizer.ForPlayer(player, "customtags.applied.config", selectedPredefinedConfig.Name));
+			ScheduleTagRefresh(player);
 		}
 		else
 		{
 			_moduleServices?.PrintForPlayer(player, $"Invalid tag configuration: {selectedConfigKey}");
 		}
 	}
-
 	private void EnsureConfigFileExists()
 	{
 		string configPath = Path.Combine(ModuleDirectory, "tags.json");
@@ -433,6 +440,109 @@ public class Plugin : BasePlugin
 		}
 		return result.ToString();
 	}
+
+	private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
+	{
+		RefreshAllPlayerTags();
+		AddTimer(0.2f, RefreshAllPlayerTags);
+		AddTimer(0.5f, RefreshAllPlayerTags);
+
+		return HookResult.Continue;
+	}
+
+	private void RefreshAllPlayerTags()
+	{
+		foreach (var player in Utilities.GetPlayers())
+		{
+			if (!IsValidHumanPlayer(player))
+				continue;
+
+			ApplyTagConfig(player!);
+			QueueScoreboardRefresh(player!);
+		}
+	}
+
+	private void ProcessPendingTagRefreshes()
+	{
+		if (_pendingScoreboardRefreshes.Count == 0)
+			return;
+
+		float now = Server.CurrentTime;
+		List<CCSPlayerController>? cleanup = null;
+
+		List<CCSPlayerController> players = new(_pendingScoreboardRefreshes.Count);
+		players.AddRange(_pendingScoreboardRefreshes.Keys);
+
+		foreach (var trackedPlayer in players)
+		{
+			if (!_pendingScoreboardRefreshes.TryGetValue(trackedPlayer, out float expiration))
+				continue;
+
+			if (!IsValidHumanPlayer(trackedPlayer))
+			{
+				cleanup ??= [];
+				cleanup.Add(trackedPlayer);
+				continue;
+			}
+
+			ApplyTagConfig(trackedPlayer);
+
+			if (expiration <= now)
+			{
+				cleanup ??= [];
+				cleanup.Add(trackedPlayer);
+			}
+		}
+
+		if (cleanup != null)
+		{
+			foreach (var trackedPlayer in cleanup)
+				_pendingScoreboardRefreshes.Remove(trackedPlayer);
+		}
+	}
+
+	private void ScheduleTagRefresh(CCSPlayerController player)
+	{
+		if (!IsValidHumanPlayer(player))
+			return;
+
+		QueueScoreboardRefresh(player);
+
+		AddTimer(0.05f, () =>
+		{
+			if (!IsValidHumanPlayer(player))
+				return;
+
+			ApplyTagConfig(player);
+		});
+
+		AddTimer(0.2f, () =>
+		{
+			if (!IsValidHumanPlayer(player))
+				return;
+
+			ApplyTagConfig(player);
+		});
+
+		AddTimer(0.5f, () =>
+		{
+			if (!IsValidHumanPlayer(player))
+				return;
+
+			ApplyTagConfig(player);
+		});
+	}
+
+	private void QueueScoreboardRefresh(CCSPlayerController player)
+	{
+		if (!IsValidHumanPlayer(player))
+			return;
+
+		_pendingScoreboardRefreshes[player] = Server.CurrentTime + 1.5f;
+	}
+
+	private static bool IsValidHumanPlayer(CCSPlayerController? player)
+		=> player != null && player.IsValid && !player.IsBot && !player.IsHLTV;
 
 	private void ApplyTagConfig(CCSPlayerController player)
 	{
@@ -606,39 +716,39 @@ public class Plugin : BasePlugin
 	private static void ApplyConfig(IPlayerServices zenithPlayer, TagConfig config)
 	{
 		if (!string.IsNullOrEmpty(config.ChatColor))
-			zenithPlayer.SetChatColor(config.ChatColor);
+			zenithPlayer.SetChatColor(config.ChatColor, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.ClanTag))
-			zenithPlayer.SetClanTag(config.ClanTag);
+			zenithPlayer.SetClanTag(config.ClanTag, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.NameColor))
-			zenithPlayer.SetNameColor(config.NameColor);
+			zenithPlayer.SetNameColor(config.NameColor, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.NameTag))
-			zenithPlayer.SetNameTag(config.NameTag);
+			zenithPlayer.SetNameTag(config.NameTag, ActionPriority.High);
 	}
 
 	private static void ApplyConfig(IPlayerServices zenithPlayer, PredefinedTagConfig config)
 	{
 		if (!string.IsNullOrEmpty(config.ChatColor))
-			zenithPlayer.SetChatColor(config.ChatColor);
+			zenithPlayer.SetChatColor(config.ChatColor, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.ClanTag))
-			zenithPlayer.SetClanTag(config.ClanTag);
+			zenithPlayer.SetClanTag(config.ClanTag, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.NameColor))
-			zenithPlayer.SetNameColor(config.NameColor);
+			zenithPlayer.SetNameColor(config.NameColor, ActionPriority.High);
 
 		if (!string.IsNullOrEmpty(config.NameTag))
-			zenithPlayer.SetNameTag(config.NameTag);
+			zenithPlayer.SetNameTag(config.NameTag, ActionPriority.High);
 	}
 
 	private static void ApplyNullConfig(IPlayerServices player)
 	{
-		player.SetChatColor(null);
-		player.SetClanTag(null);
-		player.SetNameColor(null);
-		player.SetNameTag(null);
+		player.SetChatColor(null, ActionPriority.High);
+		player.SetClanTag(null, ActionPriority.High);
+		player.SetNameColor(null, ActionPriority.High);
+		player.SetNameTag(null, ActionPriority.High);
 	}
 
 	private void OnZenithPlayerLoaded(CCSPlayerController player)
@@ -652,6 +762,7 @@ public class Plugin : BasePlugin
 
 		_playerCache[player] = zenithPlayer;
 		ApplyTagConfig(player);
+		ScheduleTagRefresh(player);
 	}
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
@@ -662,6 +773,7 @@ public class Plugin : BasePlugin
 			_removalTimers.Remove(player);
 		}
 		_playerCache.Remove(player);
+		_pendingScoreboardRefreshes.Remove(player);
 	}
 
 	public override void Unload(bool hotReload)
@@ -672,6 +784,7 @@ public class Plugin : BasePlugin
 		}
 		_removalTimers.Clear();
 		_playerCache.Clear();
+		_pendingScoreboardRefreshes.Clear();
 
 		_moduleServicesCapability?.Get()?.DisposeModule(this.GetType().Assembly);
 	}
@@ -679,6 +792,7 @@ public class Plugin : BasePlugin
 	private void OnZenithCoreUnload(bool hotReload)
 	{
 		_playerCache.Clear();
+		_pendingScoreboardRefreshes.Clear();
 
 		if (hotReload)
 		{

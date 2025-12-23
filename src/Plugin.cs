@@ -12,7 +12,7 @@ namespace Zenith
 	using MySqlConnector;
 	using Zenith.Models;
 
-	[MinimumApiVersion(260)]
+	[MinimumApiVersion(352)]
 	public sealed partial class Plugin : BasePlugin
 	{
 		public Menu.KitsuneMenu Menu { get; private set; } = null!;

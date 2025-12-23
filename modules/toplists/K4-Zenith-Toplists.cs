@@ -16,7 +16,7 @@ using ZenithAPI;
 
 namespace Zenith_TopLists;
 
-[MinimumApiVersion(260)]
+[MinimumApiVersion(352)]
 public class TopListsPlugin : BasePlugin
 {
 	private const string MODULE_ID = "Toplists";
@@ -39,7 +39,7 @@ public class TopListsPlugin : BasePlugin
 	private readonly ConcurrentDictionary<ulong, Tuple<long, DateTime>> _topPlacementCache = new();
 	private DateTime _topPlacementCacheTriggered = DateTime.MinValue;
 
-	public KitsuneMenu? Menu { get; private set; }
+	public Menu.KitsuneMenu? Menu { get; private set; }
 	public Dictionary<string, bool> _loadedModules = [];
 
 	public override void OnAllPluginsLoaded(bool hotReload)
@@ -66,7 +66,7 @@ public class TopListsPlugin : BasePlugin
 				Logger.LogError("Failed to get Zenith event handler.");
 			}
 
-			Menu = new KitsuneMenu(this);
+			Menu = new Menu.KitsuneMenu(this);
 
 			CoreAccessor = ModuleServices.GetModuleConfigAccessor();
 

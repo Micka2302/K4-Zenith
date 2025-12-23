@@ -1,5 +1,5 @@
 {
-  "timestats.notification": "{silver}Your total playtime on the server is {gold}{0}{silver}. We appreciate your time spent with us!",
+  "timestats.notification": "{white}Your total playtime on the server is {gold}{0}{white}. We appreciate your time spent with us!",
   "timestats.center.title": "+ Playtime Statistics +",
   "timestats.center.total.label": "Total:",
   "timestats.center.teams.label": "Teams:",
@@ -11,13 +11,13 @@
 
   "settings.ShowPlaytime": "PlayTime Notifications",
 
-  "timestats.chat.title": "{lime}{0}{silver}'s Playtime Statistics",
-  "timestats.chat.total": "--- {silver}Total Playtime: {lime}{0}",
-  "timestats.chat.teams": "--- {silver}Team Playtime: {red}T: {0}{silver}, {blue}CT: {1}",
-  "timestats.chat.spectator": "--- {silver}Spectator Time: {grey}{0}",
-  "timestats.chat.status": "--- {silver}Status: {green}Alive: {0}{silver}, {darkred}Dead: {1}",
+  "timestats.chat.title": "{lime}{0}{white}'s Playtime Statistics",
+  "timestats.chat.total": "--- {white}Total Playtime: {lime}{0}",
+  "timestats.chat.teams": "--- {white}Team Playtime: {red}T: {0}{white}, {blue}CT: {1}",
+  "timestats.chat.spectator": "--- {white}Spectator Time: {grey}{0}",
+  "timestats.chat.status": "--- {white}Status: {green}Alive: {0}{white}, {darkred}Dead: {1}",
 
   "timestats.today.title": "+ Today's Playtime +",
-  "timestats.today.chat.title": "{lime}{0}{silver}'s Today's Playtime",
-  "timestats.today.chat.playtime": "--- {silver}Today's Playtime: {lime}{0}"
+  "timestats.today.chat.title": "{lime}{0}{white}'s Today's Playtime",
+  "timestats.today.chat.playtime": "--- {white}Today's Playtime: {lime}{0}"
 }

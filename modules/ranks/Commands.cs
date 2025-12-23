@@ -1,3 +1,4 @@
+using System;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
@@ -98,7 +99,7 @@ public sealed partial class Plugin : BasePlugin
 		}
 	}
 
-	private void ProcessTargetAction(CCSPlayerController? player, CommandInfo info, Func<IPlayerServices, long?, (string message, string logMessage)> action, bool requireAmount = true)
+	private void ProcessTargetAction(CCSPlayerController? player, CommandInfo info, Func<IPlayerServices, long?, (string message, string logMessage, long logAmount)> action, bool requireAmount = true)
 	{
 		long? amount = null;
 		if (requireAmount)
@@ -122,13 +123,13 @@ public sealed partial class Plugin : BasePlugin
 		{
 			if (_playerCache.TryGetValue(target, out var zenithPlayer))
 			{
-				var (message, logMessage) = action(zenithPlayer, amount);
+				var (message, logMessage, logAmount) = action(zenithPlayer, amount);
 				if (player != null)
 					_moduleServices?.PrintForPlayer(target, message);
 
 				Logger.LogWarning(logMessage,
 					player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0,
-					target.PlayerName, target.SteamID, amount ?? 0);
+					target.PlayerName, target.SteamID, logAmount);
 			}
 			else
 			{
@@ -141,6 +142,8 @@ public sealed partial class Plugin : BasePlugin
 	{
 		if (_moduleServices == null)
 			return;
+
+		long maxPoints = GetCachedConfigValue<int>("Settings", "RankMaxPoints");
 
 		Task.Run(async () =>
 		{
@@ -158,8 +161,7 @@ public sealed partial class Plugin : BasePlugin
 					break;
 			}
 
-			if (points < 0)
-				points = 0;
+			points = ClampPointsWithinBounds(points, maxPoints);
 
 			string rank = DetermineRanks(points).CurrentRank?.Name ?? "k4.phrases.rank.none";
 			await _moduleServices.SetOfflineData(steamID, "storage", new Dictionary<string, object?> { { "Points", points }, { "Rank", rank } });
@@ -189,14 +191,19 @@ public sealed partial class Plugin : BasePlugin
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{
-				long newAmount = zenithPlayer.GetStorage<long>("Points") + amount!.Value;
+				long currentPoints = zenithPlayer.GetStorage<long>("Points");
+				long newAmount = ClampPointsWithinBounds(currentPoints + amount!.Value);
 				zenithPlayer.SetStorage("Points", newAmount);
 
 				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), newAmount);
+				SyncScoreboardScore(zenithPlayer, newAmount);
+
+				long appliedAmount = Math.Max(0, newAmount - currentPoints);
 
 				return (
-					Localizer.ForPlayer(player, "k4.phrases.points-given", player?.PlayerName ?? "CONSOLE", amount),
-					"{0} ({1}) gave {2} ({3}) {4} rank points."
+					Localizer.ForPlayer(player, "k4.phrases.points-given", player?.PlayerName ?? "CONSOLE", appliedAmount),
+					"{0} ({1}) gave {2} ({3}) {4} rank points.",
+					appliedAmount
 				);
 			}
 		);
@@ -225,14 +232,19 @@ public sealed partial class Plugin : BasePlugin
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{
-				long newAmount = zenithPlayer.GetStorage<long>("Points") - amount!.Value;
+				long currentPoints = zenithPlayer.GetStorage<long>("Points");
+				long newAmount = ClampPointsWithinBounds(currentPoints - amount!.Value);
 				zenithPlayer.SetStorage("Points", newAmount, true);
 
 				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), newAmount);
+				SyncScoreboardScore(zenithPlayer, newAmount);
+
+				long appliedAmount = Math.Max(0, currentPoints - newAmount);
 
 				return (
-					Localizer.ForPlayer(player, "k4.phrases.points-taken", player?.PlayerName ?? "CONSOLE", amount),
-					"{0} ({1}) taken {4} rank points from {2} ({3})."
+					Localizer.ForPlayer(player, "k4.phrases.points-taken", player?.PlayerName ?? "CONSOLE", appliedAmount),
+					"{0} ({1}) taken {4} rank points from {2} ({3}).",
+					appliedAmount
 				);
 			}
 		);
@@ -261,12 +273,15 @@ public sealed partial class Plugin : BasePlugin
 		ProcessTargetAction(player, info,
 			(zenithPlayer, amount) =>
 			{
-				zenithPlayer.SetStorage("Points", amount!.Value, true);
-				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), amount!.Value);
+				long clampedAmount = ClampPointsWithinBounds(amount!.Value);
+				zenithPlayer.SetStorage("Points", clampedAmount, true);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), clampedAmount);
+				SyncScoreboardScore(zenithPlayer, clampedAmount);
 
 				return (
-					Localizer.ForPlayer(player, "k4.phrases.points-set", player?.PlayerName ?? "CONSOLE", amount),
-					"{0} ({1}) set {2} ({3}) rank points to {4}."
+					Localizer.ForPlayer(player, "k4.phrases.points-set", player?.PlayerName ?? "CONSOLE", clampedAmount),
+					"{0} ({1}) set {2} ({3}) rank points to {4}.",
+					clampedAmount
 				);
 			}
 		);
@@ -285,8 +300,10 @@ public sealed partial class Plugin : BasePlugin
 				if (zenithPlayer != null)
 				{
 					long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");
-					zenithPlayer.SetStorage("Points", startingPoints, true);
-					UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), startingPoints);
+					long normalizedPoints = ClampPointsWithinBounds(startingPoints);
+					zenithPlayer.SetStorage("Points", normalizedPoints, true);
+					UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), normalizedPoints);
+					SyncScoreboardScore(zenithPlayer, normalizedPoints);
 				}
 
 				Logger.LogWarning("{0} ({1}) reset {2} ({3}) rank points.", player?.PlayerName ?? "CONSOLE", player?.SteamID ?? 0, onlinePlayer.PlayerName, steamId);
@@ -301,12 +318,15 @@ public sealed partial class Plugin : BasePlugin
 			(zenithPlayer, _) =>
 			{
 				long startingPoints = _configAccessor.GetValue<long>("Settings", "StartPoints");
-				zenithPlayer.SetStorage("Points", startingPoints, true);
-				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), startingPoints);
+				long normalizedPoints = ClampPointsWithinBounds(startingPoints);
+				zenithPlayer.SetStorage("Points", normalizedPoints, true);
+				UpdatePlayerRank(zenithPlayer, GetOrUpdatePlayerRankInfo(zenithPlayer), normalizedPoints);
+				SyncScoreboardScore(zenithPlayer, normalizedPoints);
 
 				return (
 					Localizer.ForPlayer(player, "k4.phrases.points-reset", player?.PlayerName ?? "CONSOLE"),
-					"{0} ({1}) reset {2} ({3}) rank points to {4}."
+					"{0} ({1}) reset {2} ({3}) rank points to {4}.",
+					normalizedPoints
 				);
 			},
 			requireAmount: false

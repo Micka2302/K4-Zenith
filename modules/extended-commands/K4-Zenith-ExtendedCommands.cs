@@ -7,7 +7,7 @@ using ZenithAPI;
 
 namespace Zenith_ExtendedCommands;
 
-[MinimumApiVersion(250)]
+[MinimumApiVersion(352)]
 public sealed partial class Plugin : BasePlugin
 {
 	private const string MODULE_ID = "ExtendedCommands";

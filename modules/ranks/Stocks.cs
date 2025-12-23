@@ -2,6 +2,8 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.UserMessages;
+using Microsoft.Extensions.Logging;
 using ZenithAPI;
 
 namespace Zenith_Ranks;
@@ -10,6 +12,8 @@ public sealed partial class Plugin : BasePlugin
 {
 	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
 	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
+	private readonly Dictionary<CCSPlayerController, bool> _scoreboardButtonStates = [];
+	private const int ServerRankRevealUserMessageId = 350;
 
 	public IEnumerable<IPlayerServices> GetValidPlayers()
 	{
@@ -31,7 +35,6 @@ public sealed partial class Plugin : BasePlugin
 
 		var vipFlags = GetCachedConfigValue<List<string>>("Settings", "VIPFlags");
 		var vipMultiplier = (decimal)GetCachedConfigValue<double>("Settings", "VipMultiplier");
-		bool scoreboardSync = GetCachedConfigValue<bool>("Settings", "ScoreboardScoreSync");
 		bool showSummaries = GetCachedConfigValue<bool>("Settings", "PointSummaries");
 
 		var playerData = GetOrUpdatePlayerRankInfo(player);
@@ -42,18 +45,18 @@ public sealed partial class Plugin : BasePlugin
 		}
 
 		long currentPoints = player.GetStorage<long>("Points");
-		long newPoints = Math.Max(0, currentPoints + points);
+		long newPoints = ClampPointsWithinBounds(currentPoints + points);
+		long delta = newPoints - currentPoints;
 
-		if (currentPoints == newPoints)
+		if (delta == 0)
 			return;
+
+		points = delta > int.MaxValue ? int.MaxValue : delta < int.MinValue ? int.MinValue : (int)delta;
 
 		player.SetStorage("Points", newPoints);
 		playerData.LastUpdate = DateTime.Now;
 
-		if (scoreboardSync && player.Controller.Score != (int)newPoints)
-		{
-			player.Controller.Score = (int)newPoints;
-		}
+		SyncScoreboardScore(player, newPoints);
 
 		UpdatePlayerRank(player, playerData, newPoints);
 
@@ -168,10 +171,81 @@ public sealed partial class Plugin : BasePlugin
 		return (int)Math.Round(pointsRatio * basePoints);
 	}
 
-	private void UpdateScoreboards()
+	// Track +showscores to push CCSUsrMsg_ServerRankRevealAll immediately and prevent scoreboard crashes.
+
+	private void HandleScoreboardRankReveal(CCSPlayerController controller)
+	{
+		if (controller == null)
+			return;
+
+		if (!controller.IsValid)
+		{
+			_scoreboardButtonStates.Remove(controller);
+			return;
+		}
+
+		bool isPressingScoreboard = ((PlayerButtons)controller.Buttons & PlayerButtons.Scoreboard) != 0;
+
+		if (_scoreboardButtonStates.TryGetValue(controller, out bool wasPressing))
+		{
+			if (isPressingScoreboard && !wasPressing)
+			{
+				SendServerRankReveal(controller);
+			}
+
+			_scoreboardButtonStates[controller] = isPressingScoreboard;
+		}
+		else
+		{
+			_scoreboardButtonStates[controller] = isPressingScoreboard;
+
+			if (isPressingScoreboard)
+			{
+				SendServerRankReveal(controller);
+			}
+		}
+	}
+
+	private void SendServerRankReveal(CCSPlayerController controller)
+	{
+		try
+		{
+			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			message.Recipients.Add(controller);
+			message.Send();
+		}
+		catch (Exception ex)
+		{
+			Logger.LogDebug("Failed to send rank reveal message: {Message}", ex.Message);
+		}
+	}
+
+	private void BroadcastServerRankReveal()
 	{
 		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
 			return;
+
+		try
+		{
+			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			message.Recipients.AddAllPlayers();
+			message.Send();
+		}
+		catch (Exception ex)
+		{
+			Logger.LogDebug("Failed to broadcast rank reveal message: {Message}", ex.Message);
+		}
+	}
+
+	private void UpdateScoreboards()
+	{
+		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
+		{
+			if (_scoreboardButtonStates.Count > 0)
+				_scoreboardButtonStates.Clear();
+
+			return;
+		}
 
 		int mode = GetCachedConfigValue<int>("Settings", "ScoreboardMode");
 		int rankMax = GetCachedConfigValue<int>("Settings", "RankMax");
@@ -180,6 +254,8 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var player in GetValidPlayers())
 		{
+			HandleScoreboardRankReveal(player.Controller);
+
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
@@ -202,6 +278,36 @@ public sealed partial class Plugin : BasePlugin
 		else
 		{
 			return points.ToString();
+		}
+	}
+
+	private long ClampPointsWithinBounds(long points)
+	{
+		long maxPoints = GetCachedConfigValue<int>("Settings", "RankMaxPoints");
+		return ClampPointsWithinBounds(points, maxPoints);
+	}
+
+	private static long ClampPointsWithinBounds(long points, long maxPoints)
+	{
+		if (points < 0)
+			points = 0;
+
+		if (maxPoints > 0 && points > maxPoints)
+			points = maxPoints;
+
+		return points;
+	}
+
+	private void SyncScoreboardScore(IPlayerServices player, long points)
+	{
+		if (!GetCachedConfigValue<bool>("Settings", "ScoreboardScoreSync"))
+			return;
+
+		int scoreboardPoints = points > int.MaxValue ? int.MaxValue : (int)points;
+
+		if (player.Controller.Score != scoreboardPoints)
+		{
+			player.Controller.Score = scoreboardPoints;
 		}
 	}
 }
