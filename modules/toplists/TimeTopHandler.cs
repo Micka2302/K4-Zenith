@@ -77,6 +77,7 @@ public class TimeTopHandler
 
 				if (buttons == MenuButtons.Select)
 				{
+					_plugin.Logger.LogInformation($"[Toplists] Time category selected: {selectedCategory} for {player.PlayerName}, count={playerCount}");
 					ShowTimeTopMenu(player, selectedCategory, playerCount);
 				}
 			}
@@ -100,14 +101,26 @@ public class TimeTopHandler
 
 	private void ShowTimeTopMenu(CCSPlayerController player, TimeCategory category, int playerCount)
 	{
+		var playerName = player?.PlayerName ?? "Unknown";
+
 		Task.Run(async () =>
 		{
-			var topPlayers = await GetTopPlayersTimeAsync(category, playerCount);
+			List<(string Name, double Time)> topPlayers;
+			try
+			{
+				topPlayers = await GetTopPlayersTimeAsync(category, playerCount);
+			}
+			catch (Exception ex)
+			{
+				_plugin.Logger.LogError($"[Toplists] Error fetching time top for {category} (player={playerName}): {ex}");
+				return;
+			}
 
 			Server.NextWorldUpdate(() =>
 			{
 				if (topPlayers.Count == 0)
 				{
+					_plugin.Logger.LogInformation($"[Toplists] No data for category {category} (player={player.PlayerName})");
 					_plugin.ModuleServices?.PrintForPlayer(player, _plugin.Localizer.ForPlayer(player, "timetop.no.data"));
 					return;
 				}
@@ -116,10 +129,12 @@ public class TimeTopHandler
 				{
 					if (_plugin.CoreAccessor?.GetValue<bool>("Core", "CenterMenuMode") == true)
 					{
+						_plugin.Logger.LogInformation($"[Toplists] Showing center time top menu, entries={topPlayers.Count} (category={category}, player={player.PlayerName})");
 						ShowCenterTimeTopMenu(player, topPlayers);
 					}
 					else
 					{
+						_plugin.Logger.LogInformation($"[Toplists] Showing chat time top menu, entries={topPlayers.Count} (category={category}, player={player.PlayerName})");
 						ShowChatTimeTopMenu(player, topPlayers);
 					}
 				}

@@ -221,6 +221,7 @@ namespace Menu
             for (int index = 0; index < items.Count; index++)
             {
                 var item = items[index];
+                var optionIndex = index; // capture stable index for callbacks
 
                 switch (item.Type)
                 {
@@ -240,7 +241,7 @@ namespace Menu
                             builder.AddToggle(label, defaultValue, (player, value) =>
                             {
                                 item.Data[0] = value ? 1 : 0;
-                                menuBase.Option = index;
+                                menuBase.Option = optionIndex;
                                 callback?.Invoke(MenuButtons.Select, menuBase, item);
                             });
                             break;
@@ -253,7 +254,7 @@ namespace Menu
 
                             builder.AddButton(label, player =>
                             {
-                                menuBase.Option = index;
+                                menuBase.Option = optionIndex;
                                 if (item.Values?.FirstOrDefault() is MenuButtonCallback buttonCallback && callback == null)
                                 {
                                     buttonCallback.Callback?.Invoke(player, buttonCallback.Data);

@@ -116,9 +116,46 @@ public class MenuConfig
 
     private void ParseButtons()
     {
+        EnsureSelectButtons();
+
         SelectButtons = ParseButtonsByNames(Select);
+        if (SelectButtons == 0)
+        {
+            // Fallback to defaults to avoid menus with no selectable input
+            SelectButtons = PlayerButtons.Jump | PlayerButtons.Use;
+            Console.WriteLine("KitsuneMenu: No valid select buttons found, defaulting to Jump + Use.");
+        }
+
         BackButtons = ParseButtonsByNames(Back);
         ExitButtons = ParseButtonsByNames(Exit);
+    }
+
+    /// <summary>
+    /// Adds missing defaults for the select buttons to keep backward compatibility
+    /// with older configs that only contained Jump.
+    /// </summary>
+    private void EnsureSelectButtons()
+    {
+        Select ??= new();
+
+        // Config missing or empty - use current defaults
+        if (Select.Count == 0)
+        {
+            Select = new() { "Jump", "Use" };
+            return;
+        }
+
+        // Older configs only had Jump - append Use so E works out of the box
+        if (Select.Count == 1 && Select[0].Equals("Jump", StringComparison.OrdinalIgnoreCase))
+        {
+            Select.Add("Use");
+        }
+
+        // If Use is missing entirely, append it to keep the primary select key usable
+        if (!Select.Any(x => x.Equals("Use", StringComparison.OrdinalIgnoreCase)))
+        {
+            Select.Add("Use");
+        }
     }
 
     private static PlayerButtons ParseButtonsByNames(List<string> buttonNames)

@@ -31,6 +31,7 @@ public static class KitsuneMenu
 
         var session = GlobalMenuManager.GetOrCreateSession(player);
         session.NavigateTo(menu);
+        GlobalMenuManager.ResetInputState(player, captureCurrentButtons: true);
 
         // Find and select first selectable item (even if disabled)
         var visibleItems = menu.Items.Where(item => item.ShouldShow(player)).ToList();
@@ -44,7 +45,9 @@ public static class KitsuneMenu
         }
 
         // Check if freezing is enabled (per-menu override or global config)
-        var shouldFreeze = menu.FreezeOverride ?? GlobalMenuManager.Config.FreezePlayer;
+        var configFreeze = GlobalMenuManager.Config.FreezePlayer;
+        var overrideFreeze = menu.FreezeOverride ?? configFreeze;
+        var shouldFreeze = configFreeze && overrideFreeze;
 
         if (menu.Parent == null && shouldFreeze)
         {
@@ -68,7 +71,9 @@ public static class KitsuneMenu
         // Get the menu before closing to check freeze override
         if (GlobalMenuManager.TryGetSession(player, out var session))
         {
-            var shouldFreeze = session.CurrentMenu?.FreezeOverride ?? GlobalMenuManager.Config.FreezePlayer;
+            var configFreeze = GlobalMenuManager.Config.FreezePlayer;
+            var overrideFreeze = session.CurrentMenu?.FreezeOverride ?? configFreeze;
+            var shouldFreeze = configFreeze && overrideFreeze;
             if (shouldFreeze)
             {
                 FreezePlayer(player, false);
@@ -114,6 +119,10 @@ public static class KitsuneMenu
     {
         var menu = session.CurrentMenu;
         if (menu == null) return;
+
+        // Clear cached button states so the next press is always seen, even if the engine
+        // didn't emit a release event between menu transitions.
+        GlobalMenuManager.ResetInputState(player, captureCurrentButtons: true);
 
         if (menu is MenuCoreMenu concreteMenu)
             concreteMenu.TriggerItemSelected(player, item);
