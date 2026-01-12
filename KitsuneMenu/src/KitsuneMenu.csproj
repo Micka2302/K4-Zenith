@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<DebugSymbols>False</DebugSymbols>
 		<DebugType>None</DebugType>
@@ -13,7 +13,7 @@
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="CounterStrikeSharp.API" Version="1.0.352">
+		<PackageReference Include="CounterStrikeSharp.API" Version="1.0.355">
 		<PrivateAssets>none</PrivateAssets>
 		<ExcludeAssets>runtime</ExcludeAssets>
 		<IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

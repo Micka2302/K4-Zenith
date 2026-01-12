@@ -48,6 +48,16 @@ internal static class GlobalMenuManager
         return _playerSessions.TryGetValue(player.Index, out session!);
     }
 
+    internal static void ResetInputState(CCSPlayerController player, bool captureCurrentButtons = false)
+    {
+        if (player == null || !player.IsValid) return;
+
+        var currentButtons = captureCurrentButtons ? player.Buttons : 0;
+        _lastButtons[player.Index] = currentButtons;
+        _keyRepeatInfo[player.Index] = new KeyRepeatInfo();
+        _lastButtonPress[player.Index] = captureCurrentButtons ? DateTime.Now : DateTime.MinValue;
+    }
+
     public static void CloseSession(CCSPlayerController player)
     {
         if (_playerSessions.TryRemove(player.Index, out var session))
@@ -219,180 +229,200 @@ internal static class GlobalMenuManager
 
     private static void ProcessPlayerInput(CCSPlayerController player, MenuSession session)
     {
-        var buttons = player.Buttons;
-        var lastButton = _lastButtons.GetValueOrDefault(player.Index);
-        var pressedButtons = buttons & ~lastButton;
-        _lastButtons[player.Index] = buttons;
-        
-        // Update last interaction time when player presses any button
-        if (pressedButtons != 0)
+        try
         {
-            session.LastInteraction = DateTime.Now;
-        }
-
-        var now = DateTime.Now;
-        var repeatInfo = _keyRepeatInfo.GetOrAdd(player.Index, _ => new KeyRepeatInfo());
-
-        // Check if we should process a repeat
-        bool shouldProcess = false;
-        PlayerButtons buttonToProcess = 0;
-
-        if (pressedButtons != 0)
-        {
-            // New button press
-            shouldProcess = true;
-            buttonToProcess = pressedButtons;
-
-            // Reset repeat info for new button
-            repeatInfo.LastButton = (ulong)buttons;
-            repeatInfo.FirstPressTime = now;
-            repeatInfo.LastRepeatTime = now;
-            repeatInfo.RepeatCount = 0;
-        }
-        else if (buttons != 0 && (ulong)buttons == repeatInfo.LastButton)
-        {
-            // Key is being held - check for repeat
-            var holdDuration = (now - repeatInfo.FirstPressTime).TotalMilliseconds;
-            var timeSinceLastRepeat = (now - repeatInfo.LastRepeatTime).TotalMilliseconds;
-
-            // Initial delay: 500ms, then repeat based on count
-            var initialDelay = 500;
-            var repeatDelay = Math.Max(30, 150 - (repeatInfo.RepeatCount * 10)); // Speed up from 150ms to 30ms
-
-            if (holdDuration > initialDelay && timeSinceLastRepeat >= repeatDelay)
+            var buttons = player.Buttons;
+            var lastButton = _lastButtons.GetValueOrDefault(player.Index);
+            var pressedButtons = buttons & ~lastButton;
+            _lastButtons[player.Index] = buttons;
+            
+            // Update last interaction time when player presses any button
+            if (pressedButtons != 0)
             {
+                session.LastInteraction = DateTime.Now;
+            }
+
+            var now = DateTime.Now;
+            var repeatInfo = _keyRepeatInfo.GetOrAdd(player.Index, _ => new KeyRepeatInfo());
+
+            // Check if we should process a repeat
+            bool shouldProcess = false;
+            PlayerButtons buttonToProcess = 0;
+
+            if (pressedButtons != 0)
+            {
+                // New button press
                 shouldProcess = true;
-                buttonToProcess = buttons;
+                buttonToProcess = pressedButtons;
+
+                // Reset repeat info for new button
+                repeatInfo.LastButton = (ulong)buttons;
+                repeatInfo.FirstPressTime = now;
                 repeatInfo.LastRepeatTime = now;
-                repeatInfo.RepeatCount++;
+                repeatInfo.RepeatCount = 0;
             }
-        }
-        else if (buttons == 0)
-        {
-            // All buttons released
-            repeatInfo.Reset();
-        }
-
-        if (!shouldProcess) return;
-
-        var menu = session.CurrentMenu;
-        if (menu == null) return;
-
-        var visibleItems = menu.Items.Where(item => item.ShouldShow(player)).ToList();
-        if (visibleItems.Count == 0) return;
-
-        // Always ensure selected index is on a selectable item
-        bool needsNewSelection = session.SelectedIndex < 0 ||
-                                session.SelectedIndex >= visibleItems.Count ||
-                                !IsSelectable(visibleItems[session.SelectedIndex]);
-
-        if (needsNewSelection)
-        {
-            // Find first selectable item
-            for (int i = 0; i < visibleItems.Count; i++)
+            else if (buttons != 0 && (ulong)buttons == repeatInfo.LastButton)
             {
-                if (IsSelectable(visibleItems[i]))
+                // Key is being held - check for repeat
+                var holdDuration = (now - repeatInfo.FirstPressTime).TotalMilliseconds;
+                var timeSinceLastRepeat = (now - repeatInfo.LastRepeatTime).TotalMilliseconds;
+
+                // Initial delay: 500ms, then repeat based on count
+                var initialDelay = 500;
+                var repeatDelay = Math.Max(30, 150 - (repeatInfo.RepeatCount * 10)); // Speed up from 150ms to 30ms
+
+                if (holdDuration > initialDelay && timeSinceLastRepeat >= repeatDelay)
                 {
-                    session.SelectedIndex = i;
-                    break;
+                    shouldProcess = true;
+                    buttonToProcess = buttons;
+                    repeatInfo.LastRepeatTime = now;
+                    repeatInfo.RepeatCount++;
                 }
             }
-        }
-
-        // Get effective buttons (with overrides if present)
-        var selectButtons = menu.ButtonOverrides?.Select ?? _config.SelectButtons;
-        var backButtons = menu.ButtonOverrides?.Back ?? _config.BackButtons;
-        var exitButtons = menu.ButtonOverrides?.Exit ?? _config.ExitButtons;
-
-        // WASD navigation is hardcoded
-        if (HasButton(buttonToProcess, PlayerButtons.Forward))
-        {
-            // Try to find previous selectable item
-            var foundSelectable = false;
-            var newIndex = session.SelectedIndex - 1;
-            while (newIndex >= 0)
+            else if (buttons == 0)
             {
-                var item = visibleItems.ElementAtOrDefault(newIndex);
-                if (item != null && IsSelectable(item))
+                // All buttons released
+                repeatInfo.Reset();
+            }
+
+            if (!shouldProcess) return;
+
+            var menu = session.CurrentMenu;
+            if (menu == null || menu.Items == null) return;
+
+            var visibleItems = menu.Items
+                .Where(item => item != null && item.ShouldShow(player))
+                .ToList();
+            if (visibleItems.Count == 0) return;
+
+            // Always ensure selected index is on a selectable item
+            bool needsNewSelection = session.SelectedIndex < 0 ||
+                                    session.SelectedIndex >= visibleItems.Count ||
+                                    !IsSelectable(visibleItems[session.SelectedIndex]);
+
+            if (needsNewSelection)
+            {
+                // Find first selectable item
+                for (int i = 0; i < visibleItems.Count; i++)
                 {
-                    session.SelectedIndex = newIndex;
-                    foundSelectable = true;
+                    if (IsSelectable(visibleItems[i]))
+                    {
+                        session.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Get effective buttons (with overrides if present)
+            var selectButtons = menu.ButtonOverrides?.Select ?? _config.SelectButtons;
+            var backButtons = menu.ButtonOverrides?.Back ?? _config.BackButtons;
+            var exitButtons = menu.ButtonOverrides?.Exit ?? _config.ExitButtons;
+
+            // Debounce select/back/exit to avoid multiple triggers while the key is held
+            if (HasButton(buttonToProcess, selectButtons | backButtons | exitButtons))
+            {
+                var lastPress = _lastButtonPress.GetValueOrDefault(player.Index);
+                if ((now - lastPress).TotalMilliseconds < 200)
+                {
+                    return;
+                }
+                _lastButtonPress[player.Index] = now;
+            }
+
+            // WASD navigation is hardcoded
+            if (HasButton(buttonToProcess, PlayerButtons.Forward))
+            {
+                // Try to find previous selectable item
+                var foundSelectable = false;
+                var newIndex = session.SelectedIndex - 1;
+                while (newIndex >= 0)
+                {
+                    var item = visibleItems.ElementAtOrDefault(newIndex);
+                    if (item != null && IsSelectable(item))
+                    {
+                        session.SelectedIndex = newIndex;
+                        foundSelectable = true;
+                        session.NeedsRender = true;
+                        if (menu is Menu concreteMenu) concreteMenu.TriggerItemHovered(player, item);
+                        break;
+                    }
+                    newIndex--;
+                }
+                
+                // If no selectable item found, still scroll the viewport if possible
+                if (!foundSelectable && session.ViewportOffset > 0)
+                {
+                    session.ViewportOffset--;
                     session.NeedsRender = true;
-                    if (menu is Menu concreteMenu) concreteMenu.TriggerItemHovered(player, item);
-                    break;
                 }
-                newIndex--;
             }
-            
-            // If no selectable item found, still scroll the viewport if possible
-            if (!foundSelectable && session.ViewportOffset > 0)
+            else if (HasButton(buttonToProcess, PlayerButtons.Back))
             {
-                session.ViewportOffset--;
-                session.NeedsRender = true;
-            }
-        }
-        else if (HasButton(buttonToProcess, PlayerButtons.Back))
-        {
-            // Try to find next selectable item
-            var foundSelectable = false;
-            var newIndex = session.SelectedIndex + 1;
-            while (newIndex < visibleItems.Count)
-            {
-                var item = visibleItems.ElementAtOrDefault(newIndex);
-                if (item != null && IsSelectable(item))
+                // Try to find next selectable item
+                var foundSelectable = false;
+                var newIndex = session.SelectedIndex + 1;
+                while (newIndex < visibleItems.Count)
                 {
-                    session.SelectedIndex = newIndex;
-                    foundSelectable = true;
-                    session.NeedsRender = true;
-                    if (menu is Menu concreteMenu) concreteMenu.TriggerItemHovered(player, item);
-                    break;
+                    var item = visibleItems.ElementAtOrDefault(newIndex);
+                    if (item != null && IsSelectable(item))
+                    {
+                        session.SelectedIndex = newIndex;
+                        foundSelectable = true;
+                        session.NeedsRender = true;
+                        if (menu is Menu concreteMenu) concreteMenu.TriggerItemHovered(player, item);
+                        break;
+                    }
+                    newIndex++;
                 }
-                newIndex++;
+                
+                // If no selectable item found, still scroll the viewport if possible
+                if (!foundSelectable && session.ViewportOffset + menu.MaxVisibleItems < visibleItems.Count)
+                {
+                    session.ViewportOffset++;
+                    session.NeedsRender = true;
+                }
             }
-            
-            // If no selectable item found, still scroll the viewport if possible
-            if (!foundSelectable && session.ViewportOffset + menu.MaxVisibleItems < visibleItems.Count)
+            else if (HasButton(buttonToProcess, selectButtons))
             {
-                session.ViewportOffset++;
-                session.NeedsRender = true;
+                var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
+                if (item != null && item.CanInteract(player))
+                {
+                    KitsuneMenu.HandleItemSelection(player, session, item);
+                }
             }
-        }
-        else if (HasButton(buttonToProcess, selectButtons))
-        {
-            var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
-            if (item != null && item.CanInteract(player))
+            else if (HasButton(buttonToProcess, PlayerButtons.Moveleft))
             {
-                KitsuneMenu.HandleItemSelection(player, session, item);
+                var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
+                if (KitsuneMenu.HandleLeftRight(player, item, false))
+                    session.NeedsRender = true;
             }
-        }
-        else if (HasButton(buttonToProcess, PlayerButtons.Moveleft))
-        {
-            var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
-            if (KitsuneMenu.HandleLeftRight(player, item, false))
-                session.NeedsRender = true;
-        }
-        else if (HasButton(buttonToProcess, PlayerButtons.Moveright))
-        {
-            var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
-            if (KitsuneMenu.HandleLeftRight(player, item, true))
-                session.NeedsRender = true;
-        }
-        else if (HasButton(buttonToProcess, backButtons))
-        {
-            if (menu.Parent != null)
+            else if (HasButton(buttonToProcess, PlayerButtons.Moveright))
             {
-                session.GoBack();
-                if (menu is Menu concreteMenu)
-                    concreteMenu.TriggerBack(player);
+                var item = visibleItems.ElementAtOrDefault(session.SelectedIndex);
+                if (KitsuneMenu.HandleLeftRight(player, item, true))
+                    session.NeedsRender = true;
             }
-            else
+            else if (HasButton(buttonToProcess, backButtons))
+            {
+                if (menu.Parent != null)
+                {
+                    session.GoBack();
+                    if (menu is Menu concreteMenu)
+                        concreteMenu.TriggerBack(player);
+                }
+                else
+                {
+                    KitsuneMenu.CloseMenu(player);
+                }
+            }
+            else if (HasButton(buttonToProcess, exitButtons))
             {
                 KitsuneMenu.CloseMenu(player);
             }
         }
-        else if (HasButton(buttonToProcess, exitButtons))
+        catch (Exception)
         {
-            KitsuneMenu.CloseMenu(player);
+            // Swallow input errors to avoid spamming logs in production
         }
     }
 
@@ -440,6 +470,21 @@ internal static class GlobalMenuManager
 
         var visibleItems = menu.Items.Where(item => item.ShouldShow(player)).ToList();
         session.LastItemCount = visibleItems.Count;
+
+        // Handle empty menu safely
+        if (visibleItems.Count == 0)
+        {
+            session.SelectedIndex = 0;
+            session.ViewportOffset = 0;
+            session.CachedHtml = string.Empty;
+            return;
+        }
+
+        // Clamp selection and viewport to valid ranges
+        if (session.SelectedIndex < 0) session.SelectedIndex = 0;
+        if (session.SelectedIndex >= visibleItems.Count) session.SelectedIndex = visibleItems.Count - 1;
+        session.ViewportOffset = Math.Max(0, Math.Min(session.ViewportOffset, Math.Max(0, visibleItems.Count - 1)));
+
         var html = new StringBuilder();
 
         // Pagination settings
@@ -455,6 +500,9 @@ internal static class GlobalMenuManager
         {
             session.ViewportOffset = session.SelectedIndex - maxVisibleItems + 1;
         }
+
+        // Ensure viewport offset stays within total items after adjustments
+        session.ViewportOffset = Math.Max(0, Math.Min(session.ViewportOffset, Math.Max(0, totalItems - 1)));
         
         var startIndex = session.ViewportOffset;
         var endIndex = Math.Min(startIndex + maxVisibleItems, totalItems);

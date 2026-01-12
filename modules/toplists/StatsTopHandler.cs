@@ -133,6 +133,8 @@ public class StatsTopHandler
 
 	private void ShowStatsTopMenu(CCSPlayerController player, StatsCategory category, int playerCount)
 	{
+		var playerName = player?.PlayerName ?? "Unknown";
+
 		Task.Run(async () =>
 		{
 			var topPlayers = await GetTopPlayersStatsAsync(category, playerCount);
