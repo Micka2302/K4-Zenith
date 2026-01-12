@@ -4,11 +4,13 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 
 defaults:
   run:
     working-directory: ${{ github.workspace }}
-    shell: bash
+    shell: pwsh
 
 jobs:
   build:
@@ -25,20 +27,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        env:
-          SOLUTION_FILE: ${{ github.workspace }}/K4-Zenith.sln
-        run: dotnet restore "$SOLUTION_FILE"
-
-      - name: Build and package Zenith
+      - name: Build and package (PowerShell)
         run: |
-          set -eo pipefail
-          chmod +x ./deploy.sh
-          ./deploy.sh
-          zip -r Zenith.zip Zenith
+          pwsh -ExecutionPolicy Bypass -File ./compile.ps1
+          Compress-Archive -Path compiled/counterstrikesharp -DestinationPath Zenith.zip -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Zenith
           path: Zenith.zip
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Zenith.zip
