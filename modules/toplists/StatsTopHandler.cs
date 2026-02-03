@@ -133,17 +133,22 @@ public class StatsTopHandler
 
 	private void ShowStatsTopMenu(CCSPlayerController player, StatsCategory category, int playerCount)
 	{
-		var playerName = player?.PlayerName ?? "Unknown";
+		if (!player.IsValid)
+			return;
 
 		Task.Run(async () =>
 		{
+			var targetPlayer = player;
 			var topPlayers = await GetTopPlayersStatsAsync(category, playerCount);
 
 			Server.NextWorldUpdate(() =>
 			{
+				if (!targetPlayer.IsValid)
+					return;
+
 				if (topPlayers.Count == 0)
 				{
-					_plugin.ModuleServices?.PrintForPlayer(player, _plugin.Localizer.ForPlayer(player, "statstop.no.data"));
+					_plugin.ModuleServices?.PrintForPlayer(targetPlayer, _plugin.Localizer.ForPlayer(targetPlayer, "statstop.no.data"));
 					return;
 				}
 
@@ -151,11 +156,11 @@ public class StatsTopHandler
 				{
 					if (_plugin.CoreAccessor?.GetValue<bool>("Core", "CenterMenuMode") == true)
 					{
-						ShowCenterStatsTopMenu(player, topPlayers);
+						ShowCenterStatsTopMenu(targetPlayer, topPlayers);
 					}
 					else
 					{
-						ShowChatStatsTopMenu(player, topPlayers);
+						ShowChatStatsTopMenu(targetPlayer, topPlayers);
 					}
 				}
 				catch (Exception ex)

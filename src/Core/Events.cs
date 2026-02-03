@@ -17,6 +17,11 @@ namespace Zenith
 
 		public HookResult OnMessage(UserMessage um)
 		{
+			string messageName = um.ReadString("messagename");
+			string leaveFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
+			if (!string.IsNullOrEmpty(leaveFormat) && IsDefaultLeaveMessage(messageName))
+				return HookResult.Stop;
+
 			int entity = um.ReadInt("entityindex");
 			Player? player = Player.Find(Utilities.GetPlayerFromIndex(entity));
 			if (player == null || !player.IsValid || player.Controller is null)
@@ -31,7 +36,7 @@ namespace Zenith
 			bool enabledChatModifier = player.GetSetting<bool>("ShowChatTags");
 
 			string dead = player.IsAlive ? string.Empty : Localizer.ForPlayer(player.Controller, "k4.tag.dead");
-			string team = um.ReadString("messagename").Contains("All") ? Localizer.ForPlayer(player.Controller, "k4.tag.all") : TeamLocalizer(player.Controller);
+			string team = messageName.Contains("All") ? Localizer.ForPlayer(player.Controller, "k4.tag.all") : TeamLocalizer(player.Controller);
 			string tag = enabledChatModifier ? player.GetNameTag() : string.Empty;
 
 			char namecolor = enabledChatModifier ? player.GetNameColor() : ChatColors.ForTeam(player.Controller!.Team);
@@ -46,6 +51,16 @@ namespace Zenith
 			_moduleServices?.InvokteZenithChatMessage(player.Controller!, message, formattedMessage);
 
 			return HookResult.Changed;
+		}
+
+		private static bool IsDefaultLeaveMessage(string messageName)
+		{
+			if (string.IsNullOrEmpty(messageName))
+				return false;
+
+			return messageName.Contains("Chat_Leave", StringComparison.OrdinalIgnoreCase)
+				|| messageName.Contains("Player_Disconnected", StringComparison.OrdinalIgnoreCase)
+				|| messageName.Contains("Chat_Disconnect", StringComparison.OrdinalIgnoreCase);
 		}
 
 		private static string FormatMessage(CCSPlayerController player, string message)
@@ -73,6 +88,16 @@ namespace Zenith
 				return HookResult.Continue;
 
 			_ = new Player(this, player);
+			return HookResult.Continue;
+		}
+
+		[GameEventHandler(HookMode.Pre)]
+		public HookResult OnPlayerDisconnectPre(EventPlayerDisconnect @event, GameEventInfo info)
+		{
+			string leaveFormat = GetCoreConfig<string>("Modular", "LeaveMessage");
+			if (!string.IsNullOrEmpty(leaveFormat))
+				info.DontBroadcast = true;
+
 			return HookResult.Continue;
 		}
 

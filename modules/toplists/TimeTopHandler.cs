@@ -101,10 +101,14 @@ public class TimeTopHandler
 
 	private void ShowTimeTopMenu(CCSPlayerController player, TimeCategory category, int playerCount)
 	{
-		var playerName = player?.PlayerName ?? "Unknown";
+		if (!player.IsValid)
+			return;
 
 		Task.Run(async () =>
 		{
+			var targetPlayer = player;
+			var playerName = targetPlayer.PlayerName;
+
 			List<(string Name, double Time)> topPlayers;
 			try
 			{
@@ -118,10 +122,13 @@ public class TimeTopHandler
 
 			Server.NextWorldUpdate(() =>
 			{
+				if (!targetPlayer.IsValid)
+					return;
+
 				if (topPlayers.Count == 0)
 				{
-					_plugin.Logger.LogInformation($"[Toplists] No data for category {category} (player={player.PlayerName})");
-					_plugin.ModuleServices?.PrintForPlayer(player, _plugin.Localizer.ForPlayer(player, "timetop.no.data"));
+					_plugin.Logger.LogInformation($"[Toplists] No data for category {category} (player={targetPlayer.PlayerName})");
+					_plugin.ModuleServices?.PrintForPlayer(targetPlayer, _plugin.Localizer.ForPlayer(targetPlayer, "timetop.no.data"));
 					return;
 				}
 
@@ -129,13 +136,13 @@ public class TimeTopHandler
 				{
 					if (_plugin.CoreAccessor?.GetValue<bool>("Core", "CenterMenuMode") == true)
 					{
-						_plugin.Logger.LogInformation($"[Toplists] Showing center time top menu, entries={topPlayers.Count} (category={category}, player={player.PlayerName})");
-						ShowCenterTimeTopMenu(player, topPlayers);
+						_plugin.Logger.LogInformation($"[Toplists] Showing center time top menu, entries={topPlayers.Count} (category={category}, player={targetPlayer.PlayerName})");
+						ShowCenterTimeTopMenu(targetPlayer, topPlayers);
 					}
 					else
 					{
-						_plugin.Logger.LogInformation($"[Toplists] Showing chat time top menu, entries={topPlayers.Count} (category={category}, player={player.PlayerName})");
-						ShowChatTimeTopMenu(player, topPlayers);
+						_plugin.Logger.LogInformation($"[Toplists] Showing chat time top menu, entries={topPlayers.Count} (category={category}, player={targetPlayer.PlayerName})");
+						ShowChatTimeTopMenu(targetPlayer, topPlayers);
 					}
 				}
 				catch (Exception ex)
