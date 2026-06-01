@@ -25,7 +25,7 @@ $projects = @(
 
 foreach ($p in $projects) {
   Write-Host "[INFO] Building $($p.Label)..."
-  dotnet publish $p.Csproj -c Release -f net8.0 --nologo
+  dotnet publish $p.Csproj -c Release -f net10.0 --nologo
   $srcDir = Join-Path $root $p.PublishDir
   $folderName = [System.IO.Path]::GetFileNameWithoutExtension($p.Dll)
   $targetRoot = if ($p.Label -eq "KitsuneMenu") {
