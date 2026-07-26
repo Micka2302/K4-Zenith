@@ -1,0 +1,10 @@
+{
+  "customtags.menu.title": "Select Tag Configuration",
+  "customtags.menu.default": "Default",
+  "customtags.menu.none": "None",
+  "customtags.applied.default": "{white}Applied default tag configuration.",
+  "customtags.applied.none": "{white}Removed all tag configurations.",
+  "customtags.applied.config": "{white}Applied {gold}{0} {white}tag configuration.",
+  "customtags.applied.default_predefined": "{white}Applied default predefined tag configuration: {gold}{0}",
+  "customtags.menu.no-tags": "No tags available"
+}

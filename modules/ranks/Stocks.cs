@@ -13,7 +13,7 @@ public sealed partial class Plugin : BasePlugin
 	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
 	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
 	private readonly Dictionary<CCSPlayerController, bool> _scoreboardButtonStates = [];
-	private const int ServerRankRevealUserMessageId = 350;
+	private const string ServerRankRevealUserMessageName = "ServerRankRevealAll";
 
 	public IEnumerable<IPlayerServices> GetValidPlayers()
 	{
@@ -210,30 +210,13 @@ public sealed partial class Plugin : BasePlugin
 	{
 		try
 		{
-			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			var message = UserMessage.FromPartialName(ServerRankRevealUserMessageName);
 			message.Recipients.Add(controller);
 			message.Send();
 		}
 		catch (Exception ex)
 		{
 			Logger.LogDebug("Failed to send rank reveal message: {Message}", ex.Message);
-		}
-	}
-
-	private void BroadcastServerRankReveal()
-	{
-		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
-			return;
-
-		try
-		{
-			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
-			message.Recipients.AddAllPlayers();
-			message.Send();
-		}
-		catch (Exception ex)
-		{
-			Logger.LogDebug("Failed to broadcast rank reveal message: {Message}", ex.Message);
 		}
 	}
 
@@ -254,12 +237,14 @@ public sealed partial class Plugin : BasePlugin
 
 		foreach (var player in GetValidPlayers())
 		{
-			HandleScoreboardRankReveal(player.Controller);
-
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, currentPoints, rankMax, rankBase, rankMargin);
+
+			// Reveal only after the fake rank has been applied. Since the July 2026
+			// scoreboard update, revealing first can briefly render the real CS rank.
+			HandleScoreboardRankReveal(player.Controller);
 		}
 	}
 

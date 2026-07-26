@@ -71,9 +71,6 @@ public sealed partial class Plugin : BasePlugin
 			}
 		}
 
-		AddTimer(5.0f, () => BroadcastServerRankReveal(), TimerFlags.REPEAT);
-		BroadcastServerRankReveal();
-
 		AddTimer((float)_playerCacheExpiration.TotalSeconds, () =>
 		{
 			try

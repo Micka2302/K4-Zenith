@@ -245,28 +245,48 @@ namespace Zenith_Ranks
 
 		private static void SetCompetitiveRank(IPlayerServices player, int mode, int rankId, long currentPoints, int rankMax, int rankBase, int rankMargin)
 		{
-			player.Controller.CompetitiveWins = 10;
+			int ranking;
+			sbyte rankType;
 
 			switch (mode)
 			{
 				case 1:
-					player.Controller.CompetitiveRanking = (int)currentPoints;
-					player.Controller.CompetitiveRankType = 11;
+					ranking = currentPoints > int.MaxValue ? int.MaxValue : (int)currentPoints;
+					rankType = 11;
 					break;
 				case 2:
 				case 3:
-					player.Controller.CompetitiveRanking = Math.Min(rankId, 18);
-					player.Controller.CompetitiveRankType = (sbyte)(mode == 2 ? 12 : 7);
+					ranking = Math.Min(rankId, 18);
+					rankType = (sbyte)(mode == 2 ? 12 : 7);
 					break;
 				case 4:
-					player.Controller.CompetitiveRanking = Math.Min(rankId, 15);
-					player.Controller.CompetitiveRankType = 10;
+					ranking = Math.Min(rankId, 15);
+					rankType = 10;
 					break;
 				default:
-					int rank = rankId > rankMax ? rankBase + rankMax - rankMargin : rankBase + (rankId - rankMargin - 1);
-					player.Controller.CompetitiveRanking = rank;
-					player.Controller.CompetitiveRankType = 12;
+					ranking = rankId > rankMax ? rankBase + rankMax - rankMargin : rankBase + (rankId - rankMargin - 1);
+					rankType = 12;
 					break;
+			}
+
+			var controller = player.Controller;
+
+			if (controller.CompetitiveWins != 10)
+			{
+				controller.CompetitiveWins = 10;
+				Utilities.SetStateChanged(controller, "CCSPlayerController", "m_iCompetitiveWins");
+			}
+
+			if (controller.CompetitiveRanking != ranking)
+			{
+				controller.CompetitiveRanking = ranking;
+				Utilities.SetStateChanged(controller, "CCSPlayerController", "m_iCompetitiveRanking");
+			}
+
+			if (controller.CompetitiveRankType != rankType)
+			{
+				controller.CompetitiveRankType = rankType;
+				Utilities.SetStateChanged(controller, "CCSPlayerController", "m_iCompetitiveRankType");
 			}
 		}
 
