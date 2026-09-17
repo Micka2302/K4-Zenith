@@ -43,6 +43,8 @@ namespace Zenith_Ranks
 		private void OnMapStart(string mapName)
 		{
 			_isGameEnd = false;
+			_scoreboardButtonStates.Clear();
+			_scoreboardRosterChanged = true;
 			AddTimer(1.0f, () =>
 			{
 				GameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;

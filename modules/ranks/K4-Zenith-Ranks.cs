@@ -222,6 +222,7 @@ public sealed partial class Plugin : BasePlugin
 
 		_playerCache[player] = handler;
 		_playerSpawned.Add(player);
+		_scoreboardRosterChanged = true;
 	}
 
 	private void OnZenithPlayerUnloaded(CCSPlayerController player)
@@ -230,6 +231,7 @@ public sealed partial class Plugin : BasePlugin
 		_playerCache.Remove(player);
 		_playerSpawned.Remove(player);
 		_scoreboardButtonStates.Remove(player);
+		_scoreboardRosterChanged = true;
 	}
 
 	private void OnZenithCoreUnload(bool hotReload)
