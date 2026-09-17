@@ -13,7 +13,8 @@ public sealed partial class Plugin : BasePlugin
 	private readonly Dictionary<ulong, PlayerRankInfo> _playerRankCache = [];
 	private readonly Dictionary<CCSPlayerController, int> _roundPoints = [];
 	private readonly Dictionary<CCSPlayerController, bool> _scoreboardButtonStates = [];
-	private const int ServerRankRevealUserMessageId = 350;
+	private bool _scoreboardRosterChanged = true;
+	private const string ServerRankRevealUserMessageName = "ServerRankRevealAll";
 
 	public IEnumerable<IPlayerServices> GetValidPlayers()
 	{
@@ -173,7 +174,7 @@ public sealed partial class Plugin : BasePlugin
 
 	// Track +showscores to push CCSUsrMsg_ServerRankRevealAll immediately and prevent scoreboard crashes.
 
-	private void HandleScoreboardRankReveal(CCSPlayerController controller)
+	private void HandleScoreboardRankReveal(CCSPlayerController controller, bool forceReveal)
 	{
 		if (controller == null)
 			return;
@@ -188,7 +189,7 @@ public sealed partial class Plugin : BasePlugin
 
 		if (_scoreboardButtonStates.TryGetValue(controller, out bool wasPressing))
 		{
-			if (isPressingScoreboard && !wasPressing)
+			if (isPressingScoreboard && (!wasPressing || forceReveal))
 			{
 				SendServerRankReveal(controller);
 			}
@@ -210,30 +211,13 @@ public sealed partial class Plugin : BasePlugin
 	{
 		try
 		{
-			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
+			var message = UserMessage.FromPartialName(ServerRankRevealUserMessageName);
 			message.Recipients.Add(controller);
 			message.Send();
 		}
 		catch (Exception ex)
 		{
 			Logger.LogDebug("Failed to send rank reveal message: {Message}", ex.Message);
-		}
-	}
-
-	private void BroadcastServerRankReveal()
-	{
-		if (!GetCachedConfigValue<bool>("Settings", "UseScoreboardRanks"))
-			return;
-
-		try
-		{
-			var message = UserMessage.FromId(ServerRankRevealUserMessageId);
-			message.Recipients.AddAllPlayers();
-			message.Send();
-		}
-		catch (Exception ex)
-		{
-			Logger.LogDebug("Failed to broadcast rank reveal message: {Message}", ex.Message);
 		}
 	}
 
@@ -252,15 +236,25 @@ public sealed partial class Plugin : BasePlugin
 		int rankBase = GetCachedConfigValue<int>("Settings", "RankBase");
 		int rankMargin = GetCachedConfigValue<int>("Settings", "RankMargin");
 
-		foreach (var player in GetValidPlayers())
-		{
-			HandleScoreboardRankReveal(player.Controller);
+		var players = GetValidPlayers().ToList();
 
+		// Apply every fake rank before revealing the scoreboard. Revealing from the
+		// same loop can expose a newly connected player's real/empty rank for one frame.
+		foreach (var player in players)
+		{
 			long currentPoints = Math.Max(1, player.GetStorage<long>("Points"));
 
 			var playerData = GetOrUpdatePlayerRankInfo(player);
 			SetCompetitiveRank(player, mode, playerData.Rank?.Id ?? 0, currentPoints, rankMax, rankBase, rankMargin);
 		}
+
+		bool forceReveal = _scoreboardRosterChanged;
+		_scoreboardRosterChanged = false;
+
+		// A roster change makes CS2 rebuild an already open scoreboard. Refresh its
+		// reveal state after all ranks are ready, even when TAB remained held down.
+		foreach (var player in players)
+			HandleScoreboardRankReveal(player.Controller, forceReveal);
 	}
 
 	private static string FormatPoints(int points)

@@ -147,7 +147,7 @@ namespace Zenith_Bans
 			var targetsCopy = new List<CCSPlayerController>(ChatSpyPlayers);
 			foreach (var admin in targetsCopy)
 			{
-				if (admin.IsValid && !admin.IsBot && !admin.IsHLTV && admin.Connected == PlayerConnectedState.PlayerConnected)
+				if (admin.IsValid && !admin.IsBot && !admin.IsHLTV && admin.Connected == PlayerConnectedState.Connected)
 				{
 					if (admin.Team != player.Team)
 						_moduleServices?.PrintForPlayer(admin, formattedMessage, false);

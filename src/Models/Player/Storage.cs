@@ -317,7 +317,7 @@ public sealed partial class Player
 
 			Server.NextWorldUpdate(() =>
 			{
-				if (Controller?.IsValid == true && Controller.Connected == PlayerConnectedState.PlayerConnected)
+				if (Controller?.IsValid == true && Controller.Connected == PlayerConnectedState.Connected)
 					_plugin.AddTimer(15.0f, () => Task.Run(() => LoadPlayerData()));
 			});
 		}
